@@ -43,8 +43,61 @@ let todos=[];let sel=new Set();document.getElementById('fecha').innerText=new Da
 async function cargar(){const {data,error}=await sb.from('pacientes').select('*').order('pos',{ascending:true});if(error){alert('Error Supabase: '+error.message);return}todos=data||[];render(todos);calc();}
 function colorDot(e,t){if(e=='si') return t=='hiv'?'dot-hiv-si':'dot-si';if(e=='no') return 'dot-no';return 'dot-pendiente'}
 function calc(){let hoy=0,sem=0,mes=0,tot=0;const now=new Date();const hoyStr=now.toISOString().slice(0,10);let map={};todos.forEach(p=>{if(!p.entrego_plata) return;const v=parseInt((p.monto_plata||0)+'')||0;tot+=v;if(p.fecha_pago==hoyStr) hoy+=v;const o=(p.origen||p.mutual||'Otro');map[o]=(map[o]||0)+v});document.getElementById('kDiario').innerText='$'+hoy.toLocaleString();document.getElementById('kSemanal').innerText='$'+sem.toLocaleString();document.getElementById('kMensual').innerText='$'+mes.toLocaleString();document.getElementById('fHoy').innerText='$'+hoy.toLocaleString();document.getElementById('fSem').innerText='$'+sem.toLocaleString();document.getElementById('fMes').innerText='$'+mes.toLocaleString();document.getElementById('fTot').innerText='$'+tot.toLocaleString();document.getElementById('kObra').innerHTML=Object.entries(map).map(([k,v])=>k+': $'+v.toLocaleString()).join('<br>')}
-function render(data){const tb=document.getElementById('tbody');tb.innerHTML='';let listaHIV=[];let listaCerca=[];data.forEach(p=>{const tieneHIV=(p.estado_hiv||'pendiente')=='si';const tieneOrina=(p.estado_orina||'pendiente')=='si';const tieneOrina24=(p.estado_orina24||'pendiente')=='si';const tieneOrden=(p.estado_orden||'pendiente')=='si';const tieneFecal=(p.estado_fecal||'pendiente')=='si';const tienePago=!!p.entrego_plata;let esParaRawson=false;if(tieneHIV){esParaRawson=true;listaHIV.push(p.nombre);}if(tieneOrina||tieneOrina24||tieneOrden||tieneFecal||tienePago){esParaRawson=true;if(!tieneHIV) listaCerca.push(p.nombre);}const tr=document.createElement('tr');if(tieneHIV){tr.style.background='linear-gradient(90deg,#39ff14,#00ff7f)';tr.style.fontWeight='800';tr.style.borderLeft='6px solid #000';}else if(esParaRawson){tr.style.background='linear-gradient(90deg,#d8ffcc,#90EE90)';tr.style.borderLeft='6px solid #39ff14';}const posC=(p.origen||'').toLowerCase().includes('rawson')?'pos-rawson':'pos-trinidad';tr.innerHTML='<td class="sticky-col"><div style="display:flex;gap:4px"><div class="pos '+posC+'">'+(p.pos||'')+'</div><button onclick="editar('+p.id+')" style="background:#111;color:#fff;border:0;border-radius:8px">✏️</button><button onclick="eliminar('+p.id+')" style="background:#ef4444;color:#fff;border:0;border-radius:8px">🗑️</button></div></td><td><input type="checkbox" '+(sel.has(p.id)?'checked':'')+' onchange="toggle('+p.id+')"></td><td><b>'+(p.nombre||'')+'</b><br><small>'+(p.domicilio||'')+' '+(p.entre_calles||'')+'</small><br><small>('+ (p.origen||'')+') '+(p.telefono||'')+'</small></td><td><b>$'+(p.monto_plata||0)+'</b></td><td><input type="checkbox" '+(p.entrego_plata?'checked':'')+' onchange="togglePago('+p.id+',this.checked)"></td><td><span class="dot '+colorDot(p.estado_orina||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orina\')"></span></td><td><span class="dot '+colorDot(p.estado_orina24||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orina24\')"></span></td><td><span class="dot '+colorDot(p.estado_fecal||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_fecal\')"></span></td><td><span class="dot '+colorDot(p.estado_orden||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orden\')"></span></td><td><span class="dot '+colorDot(p.estado_hiv||'pendiente','hiv')+'" onclick="cambiarEstado('+p.id+',\'estado_hiv\')"></span></td><td><span class="dot '+colorDot(p.estado_deriv||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_deriv\')"></span></td><td>'+(p.foto_base64?'<img class="thumb" src="'+p.foto_base64+'">':'')+'</td><td><button onclick="maps(\''+(p.domicilio||'')+' Rio Gallegos\')">📍</button></td>';tb.appendChild(tr)});document.getElementById('selC').innerText=sel.size;const b=document.getElementById('bannerRawson');let txt='';if(listaHIV.length) txt+='🧬 HIV OBLIGATORIO: '+listaHIV.join(', ')+'\n';if(listaCerca.length) txt+='💧 SI ESTAS CERCA: '+listaCerca.join(', ');if(txt){b.style.display='block';b.innerText=txt;b.style.background=listaHIV.length?'linear-gradient(90deg,#000,#39ff14)':'linear-gradient(90deg,#ffff99,#90EE90)';b.style.color=listaHIV.length?'#39ff14':'#000';}else b.style.display='none'}
-function filtrar(){const q=document.getElementById('q').value.toLowerCase();let f=todos.filter(p=>{if(q&&!((p.nombre||'').toLowerCase().includes(q)||(p.domicilio||'').toLowerCase().includes(q))) return false;return true});render(f)}
+function render(data){
+  const tb=document.getElementById('tbody');
+  tb.innerHTML='';
+  let listaHIV=[];
+  let listaCerca=[];
+
+  data.forEach(p=>{
+    const tieneHIV=(p.estado_hiv||'pendiente')=='si';
+    const tieneOrina=(p.estado_orina||'pendiente')=='si';
+    const tieneOrina24=(p.estado_orina24||'pendiente')=='si';
+    const tieneOrden=(p.estado_orden||'pendiente')=='si';
+    const tieneFecal=(p.estado_fecal||'pendiente')=='si';
+    const tienePago=!!p.entrego_plata;
+    
+    // FIX: solo si es Rawson se puede pintar
+    const esRawson = (p.origen||p.mutual||'').toLowerCase().includes('rawson');
+    
+    let esParaRawson=false;
+    if(esRawson && tieneHIV){
+      esParaRawson=true;
+      listaHIV.push(p.nombre);
+    }
+    if(esRawson && (tieneOrina||tieneOrina24||tieneOrden||tieneFecal||tienePago)){
+      esParaRawson=true;
+      if(!tieneHIV) listaCerca.push(p.nombre);
+    }
+
+    const tr=document.createElement('tr');
+    if(esParaRawson && tieneHIV){
+      tr.style.background='linear-gradient(90deg,#39ff14,#00ff7f)';
+      tr.style.fontWeight='800';
+      tr.style.borderLeft='6px solid #000';
+    }else if(esParaRawson){
+      tr.style.background='linear-gradient(90deg,#d8ffcc,#90EE90)';
+      tr.style.borderLeft='6px solid #39ff14';
+    }
+
+    const posC=(p.origen||'').toLowerCase().includes('rawson')?'pos-rawson':'pos-trinidad';
+    tr.innerHTML='<td class="sticky-col"><div style="display:flex;gap:4px"><div class="pos '+posC+'">'+(p.pos||'')+'</div><button onclick="editar('+p.id+')" style="background:#111;color:#fff;border:0;border-radius:8px">✏️</button><button onclick="eliminar('+p.id+')" style="background:#ef4444;color:#fff;border:0;border-radius:8px">🗑️</button></div></td><td><input type="checkbox" '+(sel.has(p.id)?'checked':'')+' onchange="toggle('+p.id+')"></td><td><b>'+(p.nombre||'')+'</b><br><small>'+(p.domicilio||'')+' '+(p.entre_calles||'')+'</small><br><small>('+ (p.origen||'')+') '+(p.telefono||'')+'</small></td><td><b>$'+(p.monto_plata||0)+'</b></td><td><input type="checkbox" '+(p.entrego_plata?'checked':'')+' onchange="togglePago('+p.id+',this.checked)"></td><td><span class="dot '+colorDot(p.estado_orina||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orina\')"></span></td><td><span class="dot '+colorDot(p.estado_orina24||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orina24\')"></span></td><td><span class="dot '+colorDot(p.estado_fecal||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_fecal\')"></span></td><td><span class="dot '+colorDot(p.estado_orden||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orden\')"></span></td><td><span class="dot '+colorDot(p.estado_hiv||'pendiente','hiv')+'" onclick="cambiarEstado('+p.id+',\'estado_hiv\')"></span></td><td><span class="dot '+colorDot(p.estado_deriv||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_deriv\')"></span></td><td>'+(p.foto_base64?'<img class="thumb" src="'+p.foto_base64+'">':'')+'</td><td><button onclick="maps(\''+(p.domicilio||'')+' Rio Gallegos\')">📍</button></td>';
+    tb.appendChild(tr)
+  });
+
+  document.getElementById('selC').innerText=sel.size;
+  const b=document.getElementById('bannerRawson');
+  let txt='';
+  if(listaHIV.length) txt+='🧬 HIV OBLIGATORIO: '+listaHIV.join(', ')+'\n';
+  if(listaCerca.length) txt+='💧 SI ESTAS CERCA: '+listaCerca.join(', ');
+  if(txt){
+    b.style.display='block';
+    b.innerText=txt;
+    b.style.background=listaHIV.length?'linear-gradient(90deg,#000,#39ff14)':'linear-gradient(90deg,#ffff99,#90EE90)';
+    b.style.color=listaHIV.length?'#39ff14':'#000';
+  }else b.style.display='none'
+}
+  function filtrar(){const q=document.getElementById('q').value.toLowerCase();let f=todos.filter(p=>{if(q&&!((p.nombre||'').toLowerCase().includes(q)||(p.domicilio||'').toLowerCase().includes(q))) return false;return true});render(f)}
 function toggle(id){if(sel.has(id))sel.delete(id);else sel.add(id);render(todos)}
 async function togglePago(id,chk){const fecha=chk?new Date().toISOString().slice(0,10):null;await sb.from('pacientes').update({entrego_plata:chk,fecha_pago:fecha}).eq('id',id);cargar()}
 async function cambiarEstado(id,campo){const p=todos.find(x=>x.id==id);let cur=p[campo]||'pendiente';let next=cur=='pendiente'?'si':cur=='si'?'no':'pendiente';await sb.from('pacientes').update({[campo]:next}).eq('id',id);cargar()}
