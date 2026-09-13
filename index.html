@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Domicilios - Panel V10 Fix</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<style>
+:root{--bg:#f6f5f0;--card:#fff;--line:#e8e3d8;--blue:#3b82f6;--green:#16a34a;--dark:#111827;--yellow:#facc15;--orange:#fb923c;--red:#ef4444;--fosfo:#39ff14}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui;background:var(--bg);color:var(--dark);padding-bottom:90px}
+.header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);padding:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}
+.btn{border:0;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}.btn-d{background:var(--dark);color:#fff}.btn-l{background:#eee}
+.table{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px;min-width:1250px}th{background:var(--dark);color:#fff;padding:7px;position:sticky;top:0}td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}
+.pos{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}
+.pos-trinidad{background:var(--blue)}.pos-rawson{background:var(--green)}.pos-otro{background:#999}
+.dot{width:18px;height:18px;border-radius:50%;display:inline-block;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px #ddd}
+.dot-pendiente{background:var(--orange)}.dot-si{background:var(--yellow);box-shadow:0 0 6px #facc15}.dot-hiv-si{background:var(--fosfo);box-shadow:0 0 8px var(--fosfo);border:2px solid #000}.dot-no{background:var(--red)}
+.bannerRawson{padding:12px;border-radius:12px;margin:8px;display:none;font-weight:800;font-size:13px;white-space:pre-wrap;line-height:1.4}
+.floating{position:fixed;bottom:10px;left:10px;right:10px;background:linear-gradient(135deg,#111827,#1f2937);color:#fff;border-radius:16px;padding:12px;display:flex;justify-content:space-around;z-index:40}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:50;padding:10px;overflow:auto}.box{background:#fff;border-radius:16px;padding:14px;max-width:580px;margin:20px auto}
+input,select,textarea{padding:8px;border:1px solid #ddd;border-radius:10px;background:#fff;width:100%}.thumb{width:40px;height:40px;object-fit:cover;border-radius:8px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="header">
+<div style="display:flex;justify-content:space-between"><b>Panel de domicilios V10 - FIX + FOSFO</b><small id="fecha"></small></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0"><div class="kpi"><small>DIARIO</small><br><b id="kDiario">$0</b></div><div class="kpi"><small>SEMANAL</small><br><b id="kSemanal">$0</b></div><div class="kpi"><small>MENSUAL</small><br><b id="kMensual">$0</b></div><div class="kpi"><small>TRINIDAD / RAWSON</small><br><b id="kObra" style="font-size:10px"></b></div></div>
+<div id="bannerRawson" class="bannerRawson"></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><input id="q" placeholder="Buscar domicilio..." oninput="filtrar()" style="flex:2"><select id="fMut" onchange="filtrar()"><option value="">Todas</option><option>Trinidad</option><option>Rawson</option></select><button class="btn btn-d" onclick="abrirNuevo()">+ Nuevo domicilio</button><button class="btn btn-l" onclick="document.getElementById('importBox').style.display='block'">📋 Importar domicilios</button><button class="btn btn-l" onclick="rutaMaps()">📍 Ruta (<span id="selC">0</span>)</button></div>
+<div style="font-size:11px;margin:6px 0">🟠 Pendiente / 🟡 Entregó / 🔴 No entregó / 🟢 HIV Firmó — Tocá el puntito. Verde fosfo = llevar a Rawson</div>
+</div>
+<div id="importBox" class="box" style="display:none;max-width:700px;margin:10px auto;border:2px solid #000"><h3>Importar domicilios desde WhatsApp</h3><textarea id="txtImport" rows="8" placeholder="Pega acá la lista de WhatsApp"></textarea><div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-d" onclick="parsearWhatsApp()">Cargar automático</button><button class="btn btn-l" onclick="document.getElementById('importBox').style.display='none'">Cerrar</button></div></div>
+<div class="table"><table><thead><tr><th>POS</th><th>✓</th><th>PACIENTE / DOMICILIO</th><th>COBRO</th><th>PAGÓ?</th><th>ORINA</th><th>24H</th><th>FECAL</th><th>ORDEN</th><th>HIV</th><th>DERIV</th><th>FOTO</th><th>OPC</th></tr></thead><tbody id="tbody"></tbody></table></div>
+<div class="floating"><div><small>HOY</small><br><b id="fHoy">$0</b></div><div><small>SEMANA</small><br><b id="fSem">$0</b></div><div><small>MES</small><br><b id="fMes">$0</b></div><div><small>TOTAL</small><br><b id="fTot">$0</b></div></div>
+<div id="modal" class="modal" onclick="if(event.target==this)cerrar()"><div class="box"><h3 id="mTitle">Domicilio</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input id="f_pos" type="number" placeholder="POS"><input id="f_turno" placeholder="Turno"></div>
+<input id="f_nombre" placeholder="Nombre completo"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input id="f_telefono" placeholder="Tel"><input id="f_dni" placeholder="DNI"></div>
+<input id="f_domicilio" placeholder="Domicilio"><input id="f_entre" placeholder="Entre calles"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input id="f_origen" placeholder="Trinidad/Rawson"><select id="f_mutual"><option>Trinidad</option><option>Rawson</option><option>Particular</option></select></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input id="f_monto" type="number" placeholder="Monto a cobrar"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="f_pagado" style="width:auto"> ¿Pagó?</label></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
+<select id="f_estado_orina"><option value="pendiente">Orina: Pendiente 🟠</option><option value="si">Entregó 🟡</option><option value="no">No entregó 🔴</option></select>
+<select id="f_estado_orina24"><option value="pendiente">Orina 24: Pendiente</option><option value="si">Entregó</option><option value="no">No entregó</option></select>
+<select id="f_estado_fecal"><option value="pendiente">Fecal: Pendiente</option><option value="si">Entregó</option><option value="no">No entregó</option></select>
+<select id="f_estado_orden"><option value="pendiente">Orden: Pendiente</option><option value="si">Entregó 🟡</option><option value="no">No entregó 🔴</option></select>
+<select id="f_estado_hiv"><option value="pendiente">HIV: Pendiente 🟠</option><option value="si">Firmó 🟢 FOSFO OBLIGATORIO</option><option value="no">No firmó 🔴</option></select>
+<select id="f_estado_deriv"><option value="pendiente">Deriv: Pendiente</option><option value="si">Sí</option><option value="no">No</option></select>
+</div>
+<div style="margin-top:8px"><label>Foto comprobante</label><input type="file" accept="image/*" onchange="fotoB64(this)"><input type="hidden" id="f_foto_b64"><img id="prevFoto" style="width:100%;display:none;border-radius:12px;margin-top:6px"></div>
+<input type="hidden" id="f_id"><div style="display:flex;justify-content:space-between;margin-top:12px"><button class="btn btn-l" onclick="cerrar()">Cancelar</button><button class="btn btn-d" onclick="guardar()">💾 Guardar domicilio</button></div>
+</div></div>
+<div id="fotoModal" class="modal" onclick="this.style.display='none'"><img id="fotoGrande" style="max-width:95%;max-height:95%;margin:2% auto;display:block;border-radius:16px"></div>
+<script>
+const SB_URL="https://bsgneveblhokjttpmbrj.supabase.co";
+const SB_KEY="sb_publishable_tpkAdsAtnheW3Eqx-wRW7Q_C9v0I_aY";
+const sb=supabase.createClient(SB_URL,SB_KEY);
+let todos=[];let sel=new Set();
+document.getElementById('fecha').innerText=new Date().toLocaleDateString('es-AR');
+async function cargar(){
+  const {data,error}=await sb.from('pacientes').select('*').order('pos',{ascending:true});
+  if(error){alert('Error Supabase: '+error.message);return}
+  todos=data||[];render(todos);calc();
+  try{new Sortable(document.getElementById('tbody'),{animation:150,handle:'.drag',onEnd:async()=>{const rows=[...document.querySelectorAll('#tbody tr')];for(let i=0;i<rows.length;i++){await sb.from('pacientes').update({pos:i+1}).eq('id',rows[i].dataset.id)}cargar()}})}catch(e){console.log(e)}
+}
+function colorDot(e,t){if(e=='si') return t=='hiv'?'dot-hiv-si':'dot-si';if(e=='no') return 'dot-no';return 'dot-pendiente'}
+function calc(){let hoy=0,sem=0,mes=0,tot=0;const now=new Date();const hoyStr=now.toISOString().slice(0,10);let map={};todos.forEach(p=>{if(!p.entrego_plata) return;const v=parseInt((p.monto_plata||0)+'')||0;tot+=v;if(p.fecha_pago==hoyStr) hoy+=v;if(p.fecha_pago){const d=new Date(p.fecha_pago);const diff=(now-d)/86400000;if(diff<=7) sem+=v;if(d.getMonth()==now.getMonth()&&d.getFullYear()==now.getFullYear()) mes+=v}else{mes+=v;sem+=v}const o=(p.origen||p.mutual||'Otro');map[o]=(map[o]||0)+v});document.getElementById('kDiario').innerText='$'+hoy.toLocaleString();document.getElementById('kSemanal').innerText='$'+sem.toLocaleString();document.getElementById('kMensual').innerText='$'+mes.toLocaleString();document.getElementById('fHoy').innerText='$'+hoy.toLocaleString();document.getElementById('fSem').innerText='$'+sem.toLocaleString();document.getElementById('fMes').innerText='$'+mes.toLocaleString();document.getElementById('fTot').innerText='$'+tot.toLocaleString();document.getElementById('kObra').innerHTML=Object.entries(map).map(([k,v])=>k+': $'+v.toLocaleString()).join('<br>')}
+function render(data){
+  const tb=document.getElementById('tbody');tb.innerHTML='';let listaHIV=[];let listaCerca=[];
+  data.forEach(p=>{
+    const esR=(p.origen||'').toLowerCase().includes('rawson');const esT=(p.origen||'').toLowerCase().includes('trinidad');
+    const tieneHIV=(p.estado_hiv||'pendiente')=='si';const tieneOrina=(p.estado_orina||'pendiente')=='si';const tieneOrina24=(p.estado_orina24||'pendiente')=='si';const tieneOrden=(p.estado_orden||'pendiente')=='si';const tieneFecal=(p.estado_fecal||'pendiente')=='si';const tienePago=!!p.entrego_plata;
+    let esParaRawson=false;let motivos=[];
+    if(tieneHIV){esParaRawson=true;motivos.push('HIV');listaHIV.push(p.nombre);}
+    if(tieneOrina){esParaRawson=true;motivos.push('ORINA');if(!tieneHIV) listaCerca.push(p.nombre+' (ORINA)');}
+    if(tieneOrina24){esParaRawson=true;motivos.push('ORINA 24H');if(!tieneHIV) listaCerca.push(p.nombre+' (ORINA 24H)');}
+    if(tieneOrden){esParaRawson=true;motivos.push('ORDEN');if(!tieneHIV) listaCerca.push(p.nombre+' (ORDEN)');}
+    if(tieneFecal){esParaRawson=true;motivos.push('FECAL');if(!tieneHIV) listaCerca.push(p.nombre+' (FECAL)');}
+    if(tienePago){esParaRawson=true;motivos.push('COBRO');if(!tieneHIV) listaCerca.push(p.nombre+' (COBRO)');}
+    const tr=document.createElement('tr');tr.dataset.id=p.id;
+    if(tieneHIV){tr.style.background='linear-gradient(90deg,#39ff14,#00ff7f)';tr.style.fontWeight='800';tr.style.borderLeft='6px solid #000';}else if(esParaRawson){tr.style.background='linear-gradient(90deg,#d8ffcc,#90EE90)';tr.style.borderLeft='6px solid #39ff14';}
+    const posC=esR?'pos-rawson':esT?'pos-trinidad':'pos-otro';
+    let etiqueta='';
+    if(tieneHIV){etiqueta='<span style="background:#000;color:#39ff14;padding:3px 7px;border-radius:6px;font-size:10px;margin-left:6px">🧬 LLEVAR A RAWSON - HIV OBLIGATORIO</span>';}
+    else if(esParaRawson){let textoCerca='';if(tieneFecal) textoCerca='SI ESTAS CERCA LLEVA MATERIA FECAL';else if(tieneOrina24) textoCerca='SI ESTAS CERCA LLEVA ORINA 24H';else if(tieneOrina) textoCerca='SI ESTAS CERCA LLEVA ORINA';else if(tieneOrden) textoCerca='SI ESTAS CERCA LLEVA ORDEN';else if(tienePago) textoCerca='SI ESTAS CERCA LLEVA COBRO';else textoCerca='SI ESTAS CERCA LLEVA A RAWSON';etiqueta='<span style="background:#ffff00;color:#000;padding:3px 7px;border-radius:6px;font-size:9px;margin-left:6px">💧 '+textoCerca+' ['+motivos.join('+')+']</span>';}
+    tr.innerHTML='<td class="drag"><div class="pos '+posC+'">'+(p.pos||'')+'</div></td><td><input type="checkbox" '+(sel.has(p.id)?'checked':'')+' onchange="toggle('+p.id+')"></td><td><b>'+(p.nombre||'')+'</b><br>'+etiqueta+'<br><small>'+(p.domicilio||'')+' '+(p.entre_calles?'e/ '+p.entre_calles:'')+'</small><br><small>('+ (p.origen||'')+') '+(p.telefono||'')+'</small></td><td><b>$'+(p.monto_plata||0)+'</b></td><td><input type="checkbox" '+(p.entrego_plata?'checked':'')+' onchange="togglePago('+p.id+',this.checked)"></td><td><span class="dot '+colorDot(p.estado_orina||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orina\')"></span></td><td><span class="dot '+colorDot(p.estado_orina24||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orina24\')"></span></td><td><span class="dot '+colorDot(p.estado_fecal||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_fecal\')"></span></td><td><span class="dot '+colorDot(p.estado_orden||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_orden\')"></span></td><td><span class="dot '+colorDot(p.estado_hiv||'pendiente','hiv')+'" onclick="cambiarEstado('+p.id+',\'estado_hiv\')"></span></td><td><span class="dot '+colorDot(p.estado_deriv||'pendiente')+'" onclick="cambiarEstado('+p.id+',\'estado_deriv\')"></span></td><td>'+(p.foto_base64?'<img class="thumb" src="'+p.foto_base64+'" onclick="verFoto(\''+p.foto_base64+'\')">':'')+'<br><label>📷<input type="file" accept="image/*" style="display:none" onchange="subirFotoRapida('+p.id+',this)"></label></td><td><button onclick="editar('+p.id+')">✏️</button><button onclick="maps(\''+(p.domicilio||'')+' Rio Gallegos\')">📍</button><button onclick="eliminar('+p.id+')">🗑️</button></td>';
+    tb.appendChild(tr)
+  });
+  document.getElementById('selC').innerText=sel.size;const b=document.getElementById('bannerRawson');let textoBanner='';if(listaHIV.length) textoBanner+='🧬 HIV OBLIGATORIO A RAWSON: '+listaHIV.join(', ')+'\n';if(listaCerca.length) textoBanner+='💧 SI ESTAS CERCA: '+listaCerca.join(', ');if(textoBanner){b.style.display='block';b.innerText=textoBanner;b.style.background=listaHIV.length?'linear-gradient(90deg,#000,#39ff14)':'linear-gradient(90deg,#ffff99,#90EE90)';b.style.color=listaHIV.length?'#39ff14':'#000';b.style.border=listaHIV.length?'3px solid #39ff14':'2px solid #000';}else b.style.display='none'
+}
+function filtrar(){const q=document.getElementById('q').value.toLowerCase();const mut=document.getElementById('fMut').value;let f=todos.filter(p=>{if(q&&!((p.nombre||'').toLowerCase().includes(q)||(p.domicilio||'').toLowerCase().includes(q))) return false;if(mut&&!(p.origen||'').includes(mut)) return false;return true});render(f)}
+function toggle(id){if(sel.has(id))sel.delete(id);else sel.add(id);render(todos)}
+async function togglePago(id,chk){const fecha=chk?new Date().toISOString().slice(0,10):null;await sb.from('pacientes').update({entrego_plata:chk,fecha_pago:fecha}).eq('id',id);cargar()}
+async function cambiarEstado(id,campo){const p=todos.find(x=>x.id==id);if(!p) return;let cur=p[campo]||'pendiente';let next=cur=='pendiente'?'si':cur=='si'?'no':'pendiente';await sb.from('pacientes').update({[campo]:next}).eq('id',id);cargar()}
+function maps(d){window.open('https://www.google.com/maps/search/'+encodeURIComponent(d),'_blank')}
+function rutaMaps(){if(!sel.size) return alert('Tildá domicilios');const list=todos.filter(p=>sel.has(p.id)).map(p=>p.domicilio+' Rio Gallegos');window.open('https://www.google.com/maps/dir/'+list.map(encodeURIComponent).join('/'),'_blank')}
+function verFoto(b){document.getElementById('fotoGrande').src=b;document.getElementById('fotoModal').style.display='block'}
+function fotoB64(i){const f=i.files[0];if(!f) return;const r=new FileReader();r.onload=e=>{document.getElementById('f_foto_b64').value=e.target.result;document.getElementById('prevFoto').src=e.target.result;document.getElementById('prevFoto').style.display='block'};r.readAsDataURL(f)}
+async function subirFotoRapida(id,inp){const f=inp.files[0];if(!f) return;const r=new FileReader();r.onload=async e=>{await sb.from('pacientes').update({foto_base64:e.target.result}).eq('id',id);cargar()};r.readAsDataURL(f)}
+function abrirNuevo(){
+  document.getElementById('mTitle').innerText='Nuevo domicilio';
+  document.getElementById('f_id').value='';document.getElementById('f_pos').value=todos.length+1;document.getElementById('f_nombre').value='';document.getElementById('f_telefono').value='';document.getElementById('f_dni').value='';document.getElementById('f_domicilio').value='';document.getElementById('f_entre').value='';document.getElementById('f_origen').value='';document.getElementById('f_mutual').value='Trinidad';document.getElementById('f_monto').value='';document.getElementById('f_estado_orina').value='pendiente';document.getElementById('f_estado_orina24').value='pendiente';document.getElementById('f_estado_fecal').value='pendiente';document.getElementById('f_estado_orden').value='pendiente';document.getElementById('f_estado_hiv').value='pendiente';document.getElementById('f_estado_deriv').value='pendiente';document.getElementById('f_pagado').checked=false;document.getElementById('f_foto_b64').value='';document.getElementById('prevFoto').style.display='none';document.getElementById('modal').style.display='block';
+}
+function editar(id){
+  let p=todos.find(x=>x.id==id);if(!p) return;
+  document.getElementById('mTitle').innerText='Editar: '+p.nombre;
+  document.getElementById('f_id').value=p.id;document.getElementById('f_pos').value=p.pos||'';document.getElementById('f_nombre').value=p.nombre||'';document.getElementById('f_telefono').value=p.telefono||'';document.getElementById('f_dni').value=p.dni||'';document.getElementById('f_domicilio').value=p.domicilio||'';document.getElementById('f_entre').value=p.entre_calles||'';document.getElementById('f_origen').value=p.origen||'';document.getElementById('f_mutual').value=p.mutual||p.origen||'Trinidad';document.getElementById('f_monto').value=p.monto_plata||'';document.getElementById('f_estado_orina').value=p.estado_orina||'pendiente';document.getElementById('f_estado_orina24').value=p.estado_orina24||'pendiente';document.getElementById('f_estado_fecal').value=p.estado_fecal||'pendiente';document.getElementById('f_estado_orden').value=p.estado_orden||'pendiente';document.getElementById('f_estado_hiv').value=p.estado_hiv||'pendiente';document.getElementById('f_estado_deriv').value=p.estado_deriv||'pendiente';document.getElementById('f_pagado').checked=!!p.entrego_plata;document.getElementById('f_foto_b64').value=p.foto_base64||'';if(p.foto_base64){document.getElementById('prevFoto').src=p.foto_base64;document.getElementById('prevFoto').style.display='block';}else{document.getElementById('prevFoto').style.display='none';}document.getElementById('modal').style.display='block';
+}
+function cerrar(){document.getElementById('modal').style.display='none'}
+async function guardar(){const id=document.getElementById('f_id').value;const payload={pos:parseInt(document.getElementById('f_pos').value)||null,nombre:document.getElementById('f_nombre').value,telefono:document.getElementById('f_telefono').value||null,dni:document.getElementById('f_dni').value||null,domicilio:document.getElementById('f_domicilio').value||null,entre_calles:document.getElementById('f_entre').value||null,origen:document.getElementById('f_origen').value||document.getElementById('f_mutual').value||null,mutual:document.getElementById('f_mutual').value||null,monto_plata:document.getElementById('f_monto').value||null,entrego_plata:document.getElementById('f_pagado').checked,fecha_pago:document.getElementById('f_pagado').checked?new Date().toISOString().slice(0,10):null,estado_orina:document.getElementById('f_estado_orina').valu
