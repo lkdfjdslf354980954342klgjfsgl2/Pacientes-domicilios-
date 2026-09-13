@@ -73,35 +73,63 @@ function editar(id){const p=todos.find(x=>x.id==id);if(!p) return;document.getEl
 function cerrar(){document.getElementById('modal').style.display='none'}
 async function guardar(){const id=document.getElementById('f_id').value;const payload={pos:parseInt(document.getElementById('f_pos').value)||todos.length+1,nombre:document.getElementById('f_nombre').value,telefono:document.getElementById('f_telefono').value||null,dni:document.getElementById('f_dni').value||null,domicilio:document.getElementById('f_domicilio').value||null,entre_calles:document.getElementById('f_entre').value||null,origen:document.getElementById('f_origen').value||document.getElementById('f_mutual').value||null,mutual:document.getElementById('f_mutual').value||null,monto_plata:document.getElementById('f_monto').value||null,entrego_plata:document.getElementById('f_pagado').checked,fecha_pago:document.getElementById('f_pagado').checked?new Date().toISOString().slice(0,10):null,estado_orina:document.getElementById('f_estado_orina').value,estado_orina24:document.getElementById('f_estado_orina24').value,estado_fecal:document.getElementById('f_estado_fecal').value,estado_orden:document.getElementById('f_estado_orden').value,estado_hiv:document.getElementById('f_estado_hiv').value,estado_deriv:document.getElementById('f_estado_deriv').value,foto_base64:document.getElementById('f_foto_b64').value||null};let r;if(id) r=await sb.from('pacientes').update(payload).eq('id',id);else r=await sb.from('pacientes').insert(payload);if(r.error) alert(r.error.message); else {cerrar();cargar()}}
 async function eliminar(id){if(!confirm('¿Borrar?'))return;await sb.from('pacientes').delete().eq('id',id);cargar()}
+
 function parsearWhatsApp(){
-  const raw=document.getElementById('txtImport').value;if(!raw.trim()) return alert('Pega texto');
-  const lines=raw.split('\n');let pacs=[];let act=null;
+  const raw=document.getElementById('txtImport').value;
+  if(!raw.trim()) return alert('Pega texto');
+  const lines=raw.split('\n');
+  let pacs=[]; let act=null;
   const limpiar = (t)=> t.replace(/^\s*\[\d+\/\d+,?\s*\d+:\d+(:\d+)?\]\s*/,'').replace(/^[^:]+:\s*/,'').trim();
+
   lines.forEach(l=>{
     if(!l.trim()) return;
-    if(l.toLowerCase().includes('carina jefa') &&!/^\s*\d+\./.test(limpiar(l))){return;}
-    let txt=limpiar(l);if(!txt) return;
-    const m=txt.match(/^(\d+)\.\s*(.+?)(?:\s*\((Trinidad|Rawson)\))?(?:\s+\d{5,})?.*$/i);
+    let txt=limpiar(l);
+    if(!txt) return;
+    if(txt.toLowerCase().includes('carina jefa')) return; // filtra a Carina 100%
+
+    // Detecta inicio de paciente: "2. Oscar Gonzalez (Rawson) 15677" o "3.Manuel..."
+    const m=txt.match(/^(\d+)\.\s*(.+)$/);
     if(m){
       if(act) pacs.push(act);
-      let nombre=m[2].replace(/\(.*?\)/g,'').replace(/\d{6,}/g,'').trim();
-      let origen=(txt.match(/\((Trinidad|Rawson)\)/i)||[])[1]||'Trinidad';
-      act={pos:parseInt(m[1]),nombre:nombre,origen:origen,domicilio:'',entre_calles:'',telefono:'',estado_orina:'pendiente',estado_orina24:'pendiente',estado_fecal:'pendiente',estado_orden:'pendiente',estado_hiv:'pendiente',estado_deriv:'pendiente'};
-      const tels=txt.match(/\d{6,15}/g);if(tels) act.telefono=tels[tels.length-1];
+      let resto=m[2];
+      // saca origen
+      let origen='Trinidad';
+      const om=resto.match(/\((Trinidad|Rawson)\)/i);
+      if(om) { origen=om[1]; resto=resto.replace(/\((Trinidad|Rawson)\)/i,'').trim(); }
+      // saca telefono del final
+      let tel='';
+      const tels=resto.match(/(\d{6,15})$/);
+      if(tels){ tel=tels[1]; resto=resto.replace(/\d{6,15}$/,'').trim(); }
+      // lo que queda es el nombre completo
+      let nombre=resto.trim();
+      act={pos:parseInt(m[1]),nombre:nombre,origen:origen,domicilio:'',entre_calles:'',telefono:tel,estado_orina:'pendiente',estado_orina24:'pendiente',estado_fecal:'pendiente',estado_orden:'pendiente',estado_hiv:'pendiente',estado_deriv:'pendiente'};
     }else if(act){
       const low=txt.toLowerCase();
-      if(!act.domicilio && /^[A-Za-z].*\d+/.test(txt) &&!low.includes('orina') &&!low.includes('orden') &&!low.includes('hiv') &&!low.includes('fecal') &&!low.includes('materia') && txt.length>5) act.domicilio=txt;
-      else{
-        if(low.includes('orina 24')||low.includes('24h')) act.estado_orina24='pendiente';
-        if(low.includes('orina')&&!low.includes('24')) act.estado_orina='pendiente';
-        if(low.includes('fecal')||low.includes('materia')) act.estado_fecal='pendiente';
-        if(low.includes('orden')) act.estado_orden='pendiente';
-        if(low.includes('hiv')||low.includes('consentimiento')) act.estado_hiv='pendiente';
-        if(low.includes('deriv')) act.estado_deriv='pendiente';
-        if(/entre\s+(.+)/i.test(txt)) act.entre_calles=txt.match(/entre\s+(.+)/i)[1];
-      }
+      if(low.includes('orina 24')||low.includes('24h')) act.estado_orina24='pendiente';
+      else if(low.includes('orina')) act.estado_orina='pendiente';
+      if(low.includes('fecal')||low.includes('materia')) act.estado_fecal='pendiente';
+      if(low.includes('orden')) act.estado_orden='pendiente';
+      if(low.includes('hiv')||low.includes('consentimiento')) act.estado_hiv='pendiente';
+      if(low.includes('deriv')) act.estado_deriv='pendiente';
+      else if(/entre\s+/i.test(txt)) act.entre_calles=txt;
+      else if(!act.domicilio && txt.length>4) act.domicilio=txt;
     }
   });
+  if(act) pacs.push(act);
+
+  (async()=>{
+    let ok=0;
+    for(let p of pacs){
+      if(p.nombre.length<3) continue; // no guarda "O" o "M"
+      const {error}=await sb.from('pacientes').insert({pos:p.pos,nombre:p.nombre,origen:p.origen,mutual:p.origen,telefono:p.telefono,domicilio:p.domicilio,entre_calles:p.entre_calles,estado_orina:p.estado_orina,estado_orina24:p.estado_orina24,estado_fecal:p.estado_fecal,estado_orden:p.estado_orden,estado_hiv:p.estado_hiv,estado_deriv:p.estado_deriv});
+      if(!error) ok++; else console.log(error);
+    }
+    alert('Cargados '+ok+' de '+pacs.length+'. Ahora sí con nombre completo.');
+    document.getElementById('importBox').style.display='none';
+    cargar();
+  })();
+}
+  
   if(act) pacs.push(act);
   pacs=pacs.filter(p=>!p.nombre.toLowerCase().includes('carina'));
   (async()=>{let ok=0;for(let p of pacs){const {error}=await sb.from('pacientes').insert({pos:p.pos,nombre:p.nombre,origen:p.origen,mutual:p.origen,telefono:p.telefono,domicilio:p.domicilio,entre_calles:p.entre_calles,estado_orina:p.estado_orina,estado_orina24:p.estado_orina24,estado_fecal:p.estado_fecal,estado_orden:p.estado_orden,estado_hiv:p.estado_hiv,estado_deriv:p.estado_deriv});if(!error) ok++;}alert('Cargados '+ok+' de '+pacs.length+'. Carina filtrada.');document.getElementById('importBox').style.display='none';cargar();})();
