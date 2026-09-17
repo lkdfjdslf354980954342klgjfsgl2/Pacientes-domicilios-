@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Domicilios V11.5 FIX - LAPICITO + FOTO FULL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#f6f5f0;--card:#fff;--line:#e8e3d8;--blue:#3b82f6;--green:#16a34a;--dark:#111827;--yellow:#facc15;--orange:#fb923c;--red:#ef4444;--fosfo:#39ff14}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui;background:var(--bg);color:var(--dark);padding-bottom:90px}
+.header{position:sticky;top:0;z-index:30;background:var(--card);border-bottom:1px solid var(--line);padding:10px}
+.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}.btn-d{background:var(--dark);color:#fff}.btn-l{background:#eee}
+.table{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px}th{background:var(--dark);color:#fff;padding:8px;position:sticky;top:0}td{padding:7px;border-bottom:1px solid #eee;vertical-align:middle}
+.pos{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}.pos-trinidad{background:var(--blue)}.pos-rawson{background:var(--green)}
+.dot{width:20px;height:20px;border-radius:50%;display:inline-block;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px #ddd}.dot-pendiente{background:var(--orange)}.dot-si{background:var(--yellow)}.dot-hiv-si{background:var(--fosfo);box-shadow:0 0 10px var(--fosfo);border:2px solid #000}.dot-no{background:var(--red)}
+.bannerRawson{padding:14px;border-radius:12px;margin:8px;display:none;font-weight:900;font-size:13px;white-space:pre-wrap;line-height:1.5;background:linear-gradient(90deg,#000,#0a0a0a);color:#39ff14;border:3px solid #39ff14;box-shadow:0 0 15px #39ff14}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;z-index:100;padding:10px;overflow:auto}.box{background:#fff;border-radius:16px;padding:16px;max-width:600px;margin:20px auto}
+input,select,textarea{padding:10px;border:1px solid #ddd;border-radius:10px;background:#fff;width:100%;font-size:14px}
+.sticky-col{position:sticky;left:0;background:#fff;z-index:3;border-right:2px solid #ddd}
+.fila-rawson-listo{background:linear-gradient(90deg,#39ff14,#00ff7f)!important;font-weight:900!important;border-left:8px solid #000!important;box-shadow:0 0 12px #39ff14!important}
+.btnIcon{width:32px;height:32px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:16px;display:inline-flex;align-items:center;justify-content:center;margin-right:4px}
+.btnFoto{width:34px;height:34px;border-radius:50%;border:2px solid #39ff14;background:#000;color:#39ff14;cursor:pointer;font-size:16px}
+.btnFoto.hasFoto{background:#39ff14;color:#000;box-shadow:0 0 10px #39ff14}
+#visorFoto{position:fixed;inset:0;background:#000;display:none;z-index:200;flex-direction:column}
+#visorFoto img{max-width:100%;max-height:85vh;object-fit:contain;margin:auto}
+.topBar{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#111;color:#fff}
+</style>
+</head>
+<body>
+<div class="header">
+<div style="display:flex;justify-content:space-between"><b>V11.5 FIX - LAPICITO + FOTO FULL</b><small id="fecha"></small></div>
+<div id="bannerRawson" class="bannerRawson"></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><input id="q" placeholder="Buscar..." oninput="filtrar()" style="flex:2"><select id="fMut" onchange="filtrar()"><option value="">Todas</option><option>Trinidad</option><option>Rawson</option></select><button class="btn btn-d" onclick="abrirNuevo()">+ Nuevo</button><button class="btn btn-l" onclick="document.getElementById('importBox').style.display='block'">Importar WhatsApp</button></div>
+</div>
+<div id="importBox" class="box" style="display:none;border:3px solid #000"><h3>Importar WhatsApp</h3><textarea id="txtImport" rows="10"></textarea><div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-d" onclick="parsearWhatsApp()">CARGAR</button><button class="btn btn-l" onclick="document.getElementById('importBox').style.display='none'">Cerrar</button></div></div>
+<div class="table"><table><thead><tr><th class="sticky-col">POS</th><th>✓</th><th>PACIENTE</th><th>COBRO</th><th>PAGÓ?</th><th>ORINA</th><th>24H</th><th>FECAL</th><th>ORDEN</th><th>HIV</th><th>DERIV</th><th>✏️ EDIT</th><th>📸 FOTO</th><th>MAPA</th></tr></thead><tbody id="tbody"></tbody></table></div>
+<div id="modal" class="modal" onclick="if(event.target==this)cerrar()"><div class="box">
+<h3 id="mTitle">✏️ Editar paciente</h3>
+<input id="f_pos" type="number" placeholder="POS"><input id="f_nombre" placeholder="Nombre completo"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="f_telefono" placeholder="Tel"><input id="f_dni" placeholder="DNI"></div><input id="f_domicilio" placeholder="Domicilio"><input id="f_entre" placeholder="Entre calles"><input id="f_origen" placeholder="Trinidad/Rawson"><select id="f_mutual"><option>Trinidad</option><option>Rawson</option><option>Particular</option></select><input id="f_monto" type="number" placeholder="Monto"><label style="display:flex;align-items:center;gap:8px;padding:8px;background:#f3f3f3;border-radius:10px"><input type="checkbox" id="f_pagado" style="width:auto"> ¿Pagó?</label>
+<div style="background:#000;border:2px solid #39ff14;border-radius:12px;padding:10px;margin-top:12px"><label style="color:#39ff14;font-weight:900;font-size:12px">📸 FOTO ORDEN - FULL SCREEN</label><input type="file" id="f_foto" accept="image/*" capture="environment" style="margin-top:8px;background:#111;color:#39ff14"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-l" onclick="verFotoActual()" style="flex:1">👁️ Ver FULL</button><button class="btn btn-l" onclick="quitarFoto()" style="flex:1;background:#fee;color:#b00">🗑️ Sacar foto</button></div><img id="previewFoto" style="width:100%;max-height:220px;object-fit:contain;margin-top:10px;border-radius:8px;display:none;background:#222"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><select id="f_estado_orina"><option value="pendiente">Orina: Pend</option><option value="si">Sí</option><option value="no">No</option></select><select id="f_estado_orina24"><option value="pendiente">24H: Pend</option><option value="si">Sí</option><option value="no">No</option></select><select id="f_estado_fecal"><option value="pendiente">Fecal: Pend</option><option value="si">Sí</option><option value="no">No</option></select><select id="f_estado_orden"><option value="pendiente">Orden: Pend</option><option value="si">Sí</option><option value="no">No</option></select><select id="f_estado_hiv"><option value="pendiente">HIV: Pend</option><option value="si">Firmó FOSFO</option><option value="no">No</option></select><select id="f_estado_deriv"><option value="pendiente">Deriv: Pend</option><option value="si">Sí</option><option value="no">No</option></select></div><input type="hidden" id="f_id"><input type="hidden" id="f_foto_url"><div style="display:flex;justify-content:space-between;margin-top:14px"><button class="btn btn-l" onclick="cerrar()">Cancelar</button><button class="btn btn-d" onclick="guardar()">💾 Guardar</button></div>
+</div></div>
+<div id="visorFoto"><div class="topBar"><b id="visorNombre">Foto</b><button class="btn btn-l" onclick="cerrarVisor()">✕ Cerrar</button></div><img id="visorImg" src=""><div style="padding:12px;display:flex;gap:8px;background:#111"><button class="btn btn-l" style="flex:1;background:#fee;color:#b00" onclick="quitarFotoDesdeVisor()">🗑️ Borrar foto</button><button class="btn btn-d" style="flex:1" onclick="cerrarVisor()">Volver</button></div></div>
+<script>
+const SB_URL="https://bsgneveblhokjttpmbrj.supabase.co";const SB_KEY="sb_publishable_tpkAdsAtnheW3Eqx-wRW7Q_C9v0I_aY";const sb=supabase.createClient(SB_URL,SB_KEY);
+let todos=[];let sel=new Set();let fotoTemp=null;let visorId=null;
+document.getElementById('fecha').innerText=new Date().toLocaleDateString('es-AR');
+document.getElementById('f_foto').addEventListener('change',function(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=function(ev){fotoTemp=ev.target.result;document.getElementById('f_foto_url').value=fotoTemp;const prev=document.getElementById('previewFoto');prev.src=fotoTemp;prev.style.display='block';};reader.readAsDataURL(file);});
+async function cargar(){const {data}=await sb.from('pacientes').select('*').order('pos',{ascending:true});todos=data||[];render(todos);}
+function colorDot(e,t){if(e=='si')return t=='hiv'?'dot-hiv-si':'dot-si';if(e=='no')return 'dot-no';return 'dot-pendiente'}
+function esDeRawson(p){return ((p.origen||'')+' '+(p.mutual||'')+' '+(p.domicilio||'')+' '+(p.entre_calles||'')).toLowerCase().includes('rawson');}
+function getDetalleRawson(p){let c=[];if((p.estado_orina||'')=='si')c.push('ORINA COMPLETA');if((p.estado_orina24||'')=='si')c.push('ORINA 24HS');if((p.estado_fecal||'')=='si')c.push('MATERIA FECAL');if((p.estado_orden||'')=='si')c.push('ORDEN');if((p.estado_hiv||'')=='si')c.push('HIV FIRMADO');if((p.estado_deriv||'')=='si')c.push('DERIVACION');if(!!p.entrego_plata)c.push('PAGO INMEDIATO');return c;}
+function getFotoPaciente(p){return p.foto_url || p.foto_orden || p.foto || localStorage.getItem('foto_'+p.id) || '';}
+function render(data){const tb=document.getElementById('tbody');tb.innerHTML='';let letreros=[];data.forEach(p=>{const esRawson=esDeRawson(p);const detalle=getDetalleRawson(p);const cumple=esRawson&&detalle.length>0;if(cumple){let txt='';if(detalle.length==1&&detalle[0]=='ORINA COMPLETA')txt=`💧 SI ESTAS CERCA: ${p.nombre} - DEJAR ORINA COMPLETA SOLO SI ESTÁS CERCA DE RAWSON`;else if(detalle.length==1&&detalle[0]=='MATERIA FECAL')txt=`💩 SI ESTAS CERCA: ${p.nombre} - DEJAR MATERIA FECAL SOLO SI ESTÁS CERCA DE RAWSON`;else if(detalle.length==1&&detalle[0]=='ORDEN')txt=`📄 SI ESTAS CERCA: ${p.nombre} - DEJAR / RETIRAR ORDEN SOLO SI ESTÁS CERCA DE RAWSON`;else txt=`📍 SI ESTAS CERCA: ${p.nombre} - ${detalle.join(' + ')} - SOLO SI ESTÁS CERCA DE RAWSON`;letreros.push(txt);}const tr=document.createElement('tr');if(cumple)tr.className='fila-rawson-listo';const posC=esRawson?'pos-rawson':'pos-trinidad';const fotoSrc=getFotoPaciente(p);const tieneFoto=!!fotoSrc;tr.innerHTML=`<td class="sticky-col"><div class="pos ${posC}">${p.pos||''}</div></td><td><input type="checkbox" ${sel.has(p.id)?'checked':''} onchange="toggle(${p.id})"></td><td><b>${p.nombre||''}</b><br><small style="font-size:9px;color:#666">${p.domicilio||''}</small></td><td>$${p.monto_plata||0}</td><td><input type="checkbox" ${p.entrego_plata?'checked':''} onchange="togglePago(${p.id},this.checked)"></td><td><span class="dot ${colorDot(p.estado_orina||'pendiente')}" onclick="cambiarEstado(${p.id},'estado_orina')"></span></td><td><span class="dot ${colorDot(p.estado_orina24||'pendiente')}" onclick="cambiarEstado(${p.id},'estado_orina24')"></span></td><td><span class="dot ${colorDot(p.estado_fecal||'pendiente')}" onclick="cambiarEstado(${p.id},'estado_fecal')"></span></td><td><span class="dot ${colorDot(p.estado_orden||'pendiente')}" onclick="cambiarEstado(${p.id},'estado_orden')"></span></td><td><span class="dot ${colorDot(p.estado_hiv||'pendiente','hiv')}" onclick="cambiarEstado(${p.id},'estado_hiv')"></span></td><td><span class="dot ${colorDot(p.estado_deriv||'pendiente')}" onclick="cambiarEstado(${p.id},'estado_deriv')"></span></td><td><button class="btnIcon" onclick="editar(${p.id})">✏️</button></td><td><button class="btnFoto ${tieneFoto?'hasFoto':''}" onclick="abrirVisor(${p.id})">${tieneFoto?'📸':'➕'}</button></td><td><button class="btnIcon" onclick="maps('${(p.domicilio||'').replace(/'/g,'')}')">📍</button></td>`;tb.appendChild(tr)});const b=document.getElementById('bannerRawson');if(letreros.length){b.style.display='block';b.innerText=letreros.join('\n');}else b.style.display='none'}
+function toggle(id){if(sel.has(id))sel.delete(id);else sel.add(id);render(todos)}
+async function togglePago(id,chk){await sb.from('pacientes').update({entrego_plata:chk}).eq('id',id);cargar()}
+async function cambiarEstado(id,campo){const p=todos.find(x=>x.id==id);let cur=p[campo]||'pendiente';let next=cur=='pendiente'?'si':cur=='si'?'no':'pendiente';await sb.from('pacientes').update({[campo]:next}).eq('id',id);cargar()}
+function maps(d){if(!d)return alert('Sin domicilio');window.open('https://www.google.com/maps/search/'+encodeURIComponent(d),'_blank')}
+function abrirNuevo(){document.getElementById('modal').style.display='block';document.getElementById('f_id').value='';document.getElementById('f_pos').value=todos.length+1;document.getElementById('f_nombre').value='';document.getElementById('f_foto_url').value='';document.getElementById('previewFoto').style.display='none';}
+function editar(id){const p=todos.find(x=>x.id==id);document.getElementById('f_id').value=p.id;document.getElementById('f_pos').value=p.pos||'';document.getElementById('f_nombre').value=p.nombre||'';document.getElementById('f_telefono').value=p.telefono||'';document.getElementById('f_dni').value=p.dni||'';document.getElementById('f_domicilio').value=p.domicilio||'';document.getElementById('f_entre').value=p.entre_calles||'';document.getElementById('f_origen').value=p.origen||'';document.getElementById('f_mutual').value=p.mutual||'Trinidad';document.getElementById('f_monto').value=p.monto_plata||'';document.getElementById('f_pagado').checked=!!p.entrego_plata;document.getElementById('f_estado_orina').value=p.estado_orina||'pendiente';document.getElementById('f_estado_orina24').value=p.estado_orina24||'pendiente';document.getElementById('f_estado_fecal').value=p.estado_fecal||'pendiente';document.getElementById('f_estado_orden').value=p.estado_orden||'pendiente';document.getElementById('f_estado_hiv').value=p.estado_hiv||'pendiente';document.getElementById('f_estado_deriv').value=p.estado_deriv||'pendiente';const fUrl=getFotoPaciente(p);document.getElementById('f_foto_url').value=fUrl;const prev=document.getElementById('previewFoto');if(fUrl){prev.src=fUrl;prev.style.display='block';}else prev.style.display='none';document.getElementById('modal').style.display='block';}
+function cerrar(){document.getElementById('modal').style.display='none';}
+function abrirVisor(id){const p=todos.find(x=>x.id==id);const src=getFotoPaciente(p);if(!src){if(confirm('Sin foto. ¿Agregar?'))editar(id);return;}visorId=id;document.getElementById('visorImg').src=src;document.getElementById('visorNombre').innerText=p.nombre;document.getElementById('visorFoto').style.display='flex';}
+function cerrarVisor(){document.getElementById('visorFoto').style.display='none';visorId=null;}
+function verFotoActual(){const src=document.getElementById('f_foto_url').value;if(!src)return alert('No hay foto');document.getElementById('visorImg').src=src;document.getElementById('visorFoto').style.display='flex';}
+function quitarFoto(){document.getElementById('f_foto_url').value='';document.getElementById('previewFoto').style.display='none';}
+async function quitarFotoDesdeVisor(){if(!visorId)return;localStorage.removeItem('foto_'+visorId);try{await sb.from('pacientes').update({foto_url:null}).eq('id',visorId);}catch(e){}cerrarVisor();cargar();}
+async function guardar(){
+  const id=document.getElementById('f_id').value;
+  const fotoFinal=document.getElementById('f_foto_url').value||null;
+  const payloadBase={
+    pos:parseInt(document.getElementById('f_pos').value)||1,
+    nombre:document.getElementById('f_nombre').value,
+    telefono:document.getElementById('f_telefono').value||null,
+    dni:document.getElementById('f_dni').value||null,
+    domicilio:document.getElementById('f_domicilio').value||null,
+    entre_calles:document.getElementById('f_entre').value||null,
+    origen:document.getElementById('f_origen').value||null,
+    mutual:document.getElementById('f_mutual').value||null,
+    monto_plata:document.getElementById('f_monto').value||null,
+    entrego_plata:document.getElementById('f_pagado').checked,
+    estado_orina:document.getElementById('f_estado_orina').value,
+    estado_orina24:document.getElementById('f_estado_orina24').value,
+    estado_fecal:document.getElementById('f_estado_fecal').value,
+    estado_orden:document.getElementById('f_estado_orden').value,
+    estado_hiv:document.getElementById('f_estado_hiv').value,
+    estado_deriv:document.getElementById('f_estado_deriv').value
+  };
+  let r; if(id) r=await sb.from('pacientes').update(payloadBase).eq('id',id); else r=await sb.from('pacientes').insert(payloadBase).select().single();
+  if(r && r.error){alert(r.error.message);return;}
+  const idPac=id||r.data?.id;
+  if(idPac && fotoFinal){try{localStorage.setItem('foto_'+idPac,fotoFinal);}catch(e){} try{await sb.from('pacientes').update({foto_url:fotoFinal}).eq('id',idPac);}catch(e){}}
+  if(idPac &&!fotoFinal){localStorage.removeItem('foto_'+idPac); try{await sb.from('pacientes').update({foto_url:null}).eq('id',idPac);}catch(e){}}
+  cerrar();cargar();
+}
+function filtrar(){const q=document.getElementById('q').value.toLowerCase();render(todos.filter(p=>(p.nombre||'').toLowerCase().includes(q)));}
+cargar();
+</script>
+</body>
+</html>
