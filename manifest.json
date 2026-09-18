@@ -1,24 +1,11 @@
 {
-  "name": "PREXA Laboratorio - Panel de Pacientes",
+  "name": "PREXA Laboratorio",
   "short_name": "PREXA",
-  "description": "Gestión de pacientes y domicilios - 15 a 20 visitas por fecha",
-  "start_url": "./Pacientes-domicilios-",
-  "scope": "./",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0a1931",
+  "scope": "./",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    {"src": "./icon-192.png","sizes":"192x192","type":"image/png"},
+    {"src": "./icon-512.png","sizes":"512x512","type":"image/png"}
   ]
 }
