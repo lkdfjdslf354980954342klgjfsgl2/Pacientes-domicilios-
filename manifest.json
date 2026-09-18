@@ -2,7 +2,7 @@
   "name": "PREXA Laboratorio - Panel de Pacientes",
   "short_name": "PREXA",
   "description": "Gestión de pacientes y domicilios - 15 a 20 visitas por fecha",
-  "start_url": "./panel-pacientes.html",
+  "start_url": "./Pacientes-domicilios-",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
