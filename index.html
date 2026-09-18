@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PREXA Laboratorio - V11.16 FINAL</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0a1931">
+<link rel="icon" href="./icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f6f5f0;--blue:#3b82f6;--green:#16a34a;--dark:#0a1931;--yellow:#facc15;--orange:#fb923c;--red:#ef4444;--fosfo:#39ff14}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui;background:var(--bg);overflow-x:hidden;padding-bottom:100px}
+.topbar{background:#fff;border-bottom:2px solid #ddd;padding:6px 8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.topbar input,.topbar select{padding:8px;border:1px solid #ddd;border-radius:8px;font-size:11px;min-height:36px}
+.chip{padding:6px 10px;border-radius:16px;background:#eee;font-size:11px;font-weight:700;cursor:pointer;border:0}.chip.active{background:var(--dark);color:#fff}
+.btn{border:0;border-radius:10px;padding:8px 10px;font-weight:800;cursor:pointer;min-height:36px;font-size:11px}
+.btn-d{background:var(--dark);color:#fff}.btn-l{background:#eee}.btn-g{background:#dcfce7;border:1px solid #16a34a}.btn-b{background:#dbeafe;border:1px solid #3b82f6}.btn-y{background:#fef9c3;border:1px solid #eab308}
+.table{background:#fff;border-top:2px solid var(--dark);overflow:auto;max-height:70dvh}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:1700px}th{background:var(--dark);color:#fff;padding:8px 6px;position:sticky;top:0;z-index:2;text-align:left}td{padding:6px;border-bottom:1px solid #eee}
+.pos{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;background:var(--green)}
+.dot{width:18px;height:18px;border-radius:50%;display:inline-block;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px #ddd}.dot-pendiente{background:var(--orange)}.dot-si{background:var(--yellow)}.dot-hiv-si{background:var(--fosfo)}.dot-no{background:var(--red)}
+.fila-rawson-listo{background:linear-gradient(90deg,#39ff14,#00ff7f)!important;border-left:8px solid #000!important}
+.fila-cambio-horario{background:#fef9c3!important;border-left:7px solid #eab308!important}
+.fila-dragging{opacity:.3}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:200;align-items:center;justify-content:center}.modal.open{display:flex}
+.box{background:#fff;border-radius:14px;padding:14px;max-width:720px;width:96%;max-height:92dvh;overflow:auto}
+.box input,.box select,.box textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;margin-bottom:8px;font-size:13px}
+.banner{margin:6px;padding:8px;border-radius:8px;font-size:11px;font-weight:700;display:none}.banner.show{display:block}.bannerRawson{background:#000;color:#39ff14;border:2px solid #39ff14}.bannerHorario{background:#fef9c3;border:2px solid #eab308;color:#713f12}
+.sticky-pos{position:sticky;left:0;background:#fff;border-right:2px solid #ddd;z-index:3}.sticky-acc{position:sticky;right:0;background:#fff;border-left:2px solid #ddd;z-index:3}
+</style>
+</head>
+<body>
+<div class="topbar">
+<div style="display:flex;gap:6px;align-items:center"><span style="font-weight:900">🟢</span><select id="selVista" style="font-weight:800"><option>EXTRACCIONES DEL HOY</option><option>EXTRACCIONES DE MAÑANA</option><option>TODAS</option></select></div>
+<input id="googleKey" placeholder="Google API Key" style="flex:1;min-width:120px">
+<button class="btn btn-l" id="btnAjustes">⚙️</button>
+</div>
+<div style="padding:6px 8px;display:flex;gap:6px;flex-wrap:wrap">
+<button class="chip active" data-tab="total" id="tabTotal">📋 Total Hoy (15-20)</button>
+<button class="chip" data-tab="fecha" id="tabFecha">📅 Por Fecha</button>
+<button class="chip" data-tab="individual" id="tabIndividual">👤 Individual</button>
+<button class="chip" data-tab="historico" id="tabHistorico">📚 Histórico</button>
+<input type="date" id="filtroFecha" style="display:none">
+</div>
+<div style="padding:0 8px"><input id="buscador" placeholder="Buscar paciente..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px"></div>
+<div style="padding:6px 8px;display:flex;gap:6px;align-items:center"><select id="filtroLocalidad" style="flex:1;padding:8px;border-radius:10px;border:1px solid #ddd"><option>Todas</option><option>RAWSON</option><option>TRINIDAD</option><option>CERCANIA</option></select><span id="contador" style="font-size:11px;font-weight:700"></span></div>
+<div style="padding:6px 8px;display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn btn-d" id="btnNuevo">+ Nuevo</button>
+<button class="btn btn-l" id="btnImportar">📥 Importar</button>
+<button class="btn btn-b" id="btnCercania">📍 Cercanía</button>
+<button class="btn btn-y" id="btnHorarios">⏰ Horarios 20/30</button>
+<button class="btn btn-d" id="btnOrdenFinal">✅ Orden Final</button>
+<button class="btn btn-g" id="btnDuplicar">📋 Duplicar mañana</button>
+<input type="file" id="fileImport" accept=".csv,.txt" style="display:none">
+</div>
+<div id="bannerRawson" class="banner bannerRawson"></div>
+<div id="bannerHorario" class="banner bannerHorario"></div>
+<div class="table"><table><thead><tr><th class="sticky-pos">✓</th><th>POS</th><th>FECHA</th><th>HORARIO</th><th>PACIENTE</th><th>TEL</th><th>DIRECCIÓN + ENTRE CALLES</th><th>MUTUAL</th><th>EXTRA</th><th class="sticky-acc">ACC</th></tr></thead><tbody id="tbody"></tbody></table></div>
+<div class="modal" id="modal"><div class="box">
+<h3 id="modalTitle">Paciente</h3>
+<input type="hidden" id="editId">
+<div style="display:flex;gap:6px"><input type="date" id="fFecha"><input type="time" id="fHorario" style="max-width:130px"></div>
+<input id="fPaciente" placeholder="APELLIDO NOMBRE *">
+<div style="display:flex;gap:6px"><input id="fTel" placeholder="TEL"><input id="fMutual" placeholder="MUTUAL"></div>
+<input id="fDireccion" placeholder="DIRECCIÓN + ENTRE CALLES *">
+<div style="display:flex;gap:6px"><select id="fLocalidad"><option>RAWSON</option><option>TRINIDAD</option><option>OTRO</option></select><select id="fLab"><option>RAWSON</option><option>TRINIDAD</option></select></div>
+<select id="fExtra"><option value="pendiente">🟠 PENDIENTE</option><option value="si">🟡 SI</option><option value="hiv-si">🟢 HIV SI</option><option value="no">🔴 NO</option></select>
+<textarea id="fObs" placeholder="Obs / Referencias / Claves"></textarea>
+<input type="file" id="fFotoFile" accept="image/*" style="display:none">
+<div style="display:flex;gap:6px"><button class="btn btn-b" id="btnFoto" style="flex:1">📸 FOTO</button><img id="prevFoto" style="width:44px;height:44px;border-radius:8px;object-fit:cover;display:none"></div>
+<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-d" id="btnGuardar" style="flex:1">💾 GUARDAR</button><button class="btn btn-l" id="btnCerrar">CERRAR</button></div>
+<button class="btn" id="btnEliminar" style="width:100%;margin-top:8px;background:#fee;color:#900;border:1px solid #fca5a5">🗑️ Eliminar</button>
+</div></div>
+<div class="modal" id="modalFoto"><div class="box" style="background:#000"><img id="imgGrande" style="width:100%"><button class="btn btn-l" id="btnCerrarFoto" style="width:100%;margin-top:8px">CERRAR</button></div></div>
+<script>
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const KEY='prexa_v1116_final';
+let data=JSON.parse(localStorage.getItem(KEY)||'null');
+if(!data){
+const hoy=new Date().toISOString().slice(0,10);
+data=[
+{id:1,pos:1,fecha:hoy,horario:'08:00',paciente:'PEREZ JUAN',tel:'264 5 123456',direccion:'LIBERTADOR 1010 e/ LAS HERAS Y SALTA',mutual:'OSDE',loc:'RAWSON',lab:'RAWSON',extra:'pendiente',obs:'Reja negra',foto:''},
+{id:2,pos:2,fecha:hoy,horario:'08:30',paciente:'GONZALEZ MARIA HIV',tel:'',direccion:'MITRE 55 2B e/ ENTRE RIOS',mutual:'PAMI',loc:'TRINIDAD',lab:'TRINIDAD',extra:'hiv-si',obs:'Heladera',foto:''}
+];
+}
+let vista='total'; let filtroTexto=''; let filtroLoc='Todas'; let fechaFiltro=''; let fotoTemp='';
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+function renderBanners(){
+const pendRaw=data.filter(d=>d.lab==='RAWSON' && d.extra==='pendiente').length;
+const cambios=data.filter(d=>d.horario && d.horario.toLowerCase().includes('cambio')).length;
+const bR=$('#bannerRawson'), bH=$('#bannerHorario');
+if(pendRaw>0){bR.textContent=`⚡ RAWSON: ${pendRaw} pendientes`; bR.classList.add('show');}else bR.classList.remove('show');
+if(cambios>0){bH.textContent=`⏰ ${cambios} con cambio de horario`; bH.classList.add('show');}else bH.classList.remove('show');
+}
+function getFiltrados(){
+let f=[...data];
+const hoy=new Date().toISOString().slice(0,10);
+if(vista==='total'){ f=f.filter(x=>x.fecha===hoy); }
+if(vista==='fecha' && fechaFiltro){ f=f.filter(x=>x.fecha===fechaFiltro); }
+if(vista==='historico'){ f=f.filter(x=>x.fecha<hoy); }
+if(filtroLoc!=='Todas'){ if(filtroLoc==='RAWSON' || filtroLoc==='TRINIDAD') f=f.filter(x=>x.loc===filtroLoc || x.lab===filtroLoc); }
+if(filtroTexto){ const t=filtroTexto.toLowerCase(); f=f.filter(x=>(x.paciente+x.direccion+x.tel+x.mutual+x.obs).toLowerCase().includes(t)); }
+f.sort((a,b)=>{ if(a.fecha!==b.fecha) return a.fecha.localeCompare(b.fecha); return a.pos-b.pos; });
+return f;
+}
+function aplicarReglas(tr,r){
+tr.classList.remove('fila-rawson-listo','fila-cambio-horario');
+if(r.lab==='RAWSON' && r.extra==='si') tr.classList.add('fila-rawson-listo');
+if(r.horario && (r.horario.toLowerCase().includes('cambio')||r.horario.toLowerCase().includes('reprog'))) tr.classList.add('fila-cambio-horario');
+}
+function render(){
+const lista=getFiltrados();
+const tbody=$('#tbody'); tbody.innerHTML='';
+lista.forEach(r=>{
+const tr=document.createElement('tr'); tr.draggable=true; tr.dataset.id=r.id;
+tr.innerHTML=`<td class="sticky-pos"><input type="checkbox"></td><td><div class="pos">${r.pos}</div></td><td>${r.fecha}</td><td>${r.horario}</td><td><b>${r.paciente}</b><br><small>${r.obs||''}</small></td><td>${r.tel}</td><td>${r.direccion}</td><td>${r.mutual}</td><td><span class="dot dot-${r.extra}" data-act="toggle"></span> ${r.extra}</td><td class="sticky-acc"><button data-act="edit">✏️</button> <button data-act="foto">${r.foto?'📸':'📷'}</button> <a href="https://www.google.com/maps/search/${encodeURIComponent(r.direccion)}" target="_blank">📍</a> <a href="https://wa.me/${r.tel.replace(/\D/g,'')}" target="_blank">💬</a></td>`;
+aplicarReglas(tr,r);
+tr.addEventListener('dragstart',e=>{tr.classList.add('fila-dragging'); e.dataTransfer.setData('text',r.id);});
+tr.addEventListener('dragend',()=>tr.classList.remove('fila-dragging'));
+tr.addEventListener('dragover',e=>e.preventDefault());
+tr.addEventListener('drop',e=>{e.preventDefault(); const did=e.dataTransfer.getData('text'); if(did==r.id) return; const d1=data.find(x=>x.id==did); const d2=data.find(x=>x.id==r.id); const t=d1.pos; d1.pos=d2.pos; d2.pos=t; data.sort((a,b)=>a.pos-b.pos).forEach((x,i)=>x.pos=i+1); save(); render();});
+tbody.appendChild(tr);
+});
+tbody.querySelectorAll('[data-act]').forEach(el=>el.addEventListener('click',e=>{
+const tr=e.target.closest('tr'); const row=data.find(x=>x.id==tr.dataset.id);
+const act=e.target.dataset.act;
+if(act==='edit') abrir(row);
+if(act==='toggle'){ const o=['pendiente','si','hiv-si','no']; row.extra=o[(o.indexOf(row.extra)+1)%o.length]; save(); render(); renderBanners(); }
+if(act==='foto'){ if(row.foto){ $('#imgGrande').src=row.foto; $('#modalFoto').classList.add('open'); } else { abrir(row); setTimeout(()=>$('#btnFoto').click(),200);} }
+}));
+$('#contador').textContent=`${lista.length} pacientes`;
+$('#tabTotal').textContent=`📋 Total Hoy (${lista.length})`;
+renderBanners();
+}
+function abrir(row){
+if(row){ $('#editId').value=row.id; $('#fFecha').value=row.fecha; $('#fHorario').value=row.horario.replace(/[^0-9:]/g,'').slice(0,5)||'08:00'; $('#fPaciente').value=row.paciente; $('#fTel').value=row.tel; $('#fDireccion').value=row.direccion; $('#fMutual').value=row.mutual; $('#fLocalidad').value=row.loc; $('#fLab').value=row.lab; $('#fExtra').value=row.extra; $('#fObs').value=row.obs; fotoTemp=row.foto||''; $('#modalTitle').textContent=`EDITAR POS ${row.pos}`; $('#btnEliminar').style.display='block'; if(fotoTemp){$('#prevFoto').src=fotoTemp; $('#prevFoto').style.display='block';}else $('#prevFoto').style.display='none'; }
+else { const hoy=new Date().toISOString().slice(0,10); $('#editId').value=''; $('#fFecha').value=hoy; $('#fHorario').value='08:00'; $('#fPaciente').value=''; $('#fTel').value=''; $('#fDireccion').value=''; $('#fMutual').value=''; $('#fLocalidad').value='RAWSON'; $('#fLab').value='RAWSON'; $('#fExtra').value='pendiente'; $('#fObs').value=''; fotoTemp=''; $('#prevFoto').style.display='none'; $('#modalTitle').textContent='NUEVO'; $('#btnEliminar').style.display='none'; }
+$('#modal').classList.add('open');
+}
+document.addEventListener('DOMContentLoaded',()=>{
+render();
+$('#btnNuevo').addEventListener('click',()=>abrir(null));
+$('#btnCerrar').addEventListener('click',()=>$('#modal').classList.remove('open'));
+$('#btnCerrarFoto').addEventListener('click',()=>$('#modalFoto').classList.remove('open'));
+$('#buscador').addEventListener('input',e=>{filtroTexto=e.target.value; render();});
+$('#filtroLocalidad').addEventListener('change',e=>{filtroLoc=e.target.value; render();});
+$$('.chip').forEach(c=>c.addEventListener('click',e=>{
+$$('.chip').forEach(x=>x.classList.remove('active')); e.target.classList.add('active');
+vista=e.target.dataset.tab;
+if(vista==='fecha'){ $('#filtroFecha').style.display='block'; if(!$('#filtroFecha').value) $('#filtroFecha').value=new Date().toISOString().slice(0,10); fechaFiltro=$('#filtroFecha').value; } else $('#filtroFecha').style.display='none';
+render();
+}));
+$('#filtroFecha').addEventListener('change',e=>{fechaFiltro=e.target.value; render();});
+$('#btnFoto').addEventListener('click',()=>$('#fFotoFile').click());
+$('#fFotoFile').addEventListener('change',e=>{ const file=e.target.files[0]; if(!file) return; const r=new FileReader(); r.onload=ev=>{fotoTemp=ev.target.result; $('#prevFoto').src=fotoTemp; $('#prevFoto').style.display='block';}; r.readAsDataURL(file); });
+$('#btnGuardar').addEventListener('click',()=>{
+const id=$('#editId').value;
+const obj={fecha:$('#fFecha').value||new Date().toISOString().slice(0,10), horario:$('#fHorario').value, paciente:($('#fPaciente').value||'SIN NOMBRE').toUpperCase(), tel:$('#fTel').value, direccion:($('#fDireccion').value||'').toUpperCase(), mutual:($('#fMutual').value||'').toUpperCase(), loc:$('#fLocalidad').value, lab:$('#fLab').value, extra:$('#fExtra').value, obs:$('#fObs').value, foto:fotoTemp};
+if(!obj.direccion){alert('Dirección obligatoria'); return;}
+if(id){ Object.assign(data.find(x=>x.id==id),obj); } else { const max=data.length?Math.max(...data.filter(d=>d.fecha===obj.fecha).map(d=>d.pos),0):0; data.push({id:Date.now(),pos:max+1,...obj}); }
+data.sort((a,b)=>{ if(a.fecha!==b.fecha) return a.fecha.localeCompare(b.fecha); return a.pos-b.pos; });
+let currentFecha=''; let idx=0; data.forEach(d=>{ if(d.fecha!==currentFecha){ currentFecha=d.fecha; idx=1; } else idx++; d.pos=idx; });
+save(); render(); $('#modal').classList.remove('open');
+});
+$('#btnEliminar').addEventListener('click',()=>{ const id=$('#editId').value; if(!id) return; if(!confirm('Eliminar?')) return; data=data.filter(x=>x.id!=id); save(); render(); $('#modal').classList.remove('open'); });
+$('#btnCercania').addEventListener('click',()=>{
+const key=$('#googleKey').value; if(!key){ alert('Poné Google API Key arriba'); return; }
+alert('Cercanía: ordena por distancia usando Google Distance Matrix. Por ahora ordena por dirección A-Z (simulado).');
+data.sort((a,b)=>a.direccion.localeCompare(b.direccion)).forEach((x,i)=>x.pos=i+1); save(); render();
+});
+$('#btnHorarios').addEventListener('click',()=>{
+let html='Horarios 20/30: bloques\\n'; data.filter(d=>d.fecha===new Date().toISOString().slice(0,10)).forEach(d=>{ html+=`${d.horario} - ${d.paciente}\\n`; });
+alert(html);
+});
+$('#btnOrdenFinal').addEventListener('click',()=>{
+if(!confirm('¿Bloquear orden final?')) return;
+data.sort((a,b)=>a.pos-b.pos); save(); render(); alert('Orden Final guardado ✅');
+});
+$('#btnDuplicar').addEventListener('click',()=>{
+const hoy=new Date().toISOString().slice(0,10); const manana=new Date(); manana.setDate(manana.getDate()+1); const man=manana.toISOString().slice(0,10);
+if(!confirm(`Duplicar ${data.filter(d=>d.fecha===hoy).length} pacientes de hoy a mañana (${man})?`)) return;
+const copia=data.filter(d=>d.fecha===hoy).map(d=>({...d, id:Date.now()+Math.random(), fecha:man, extra:'pendiente', pos:0 }));
+data=[...data,...copia];
+let currentFecha=''; let idx=0; data.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>{ if(d.fecha!==currentFecha){ currentFecha=d.fecha; idx=1; } else idx++; d.pos=idx; });
+save(); render(); alert(`Duplicado a mañana: ${copia.length} pacientes`);
+});
+$('#btnImportar').addEventListener('click',()=>$('#fileImport').click());
+$('#fileImport').addEventListener('change',e=>{
+const file=e.target.files[0]; if(!file) return;
+const reader=new FileReader(); reader.onload=ev=>{
+const lines=ev.target.result.split('\n').filter(l=>l.trim());
+let imp=0; lines.forEach(l=>{
+const parts=l.split(','); if(parts.length<3) return;
+const hoy=new Date().toISOString().slice(0,10);
+data.push({id:Date.now()+Math.random(), pos:data.length+1, fecha:hoy, horario:parts[0]||'08:00', paciente:(parts[1]||'IMPORT').toUpperCase(), tel:parts[2]||'', direccion:(parts[3]||'').toUpperCase(), mutual:(parts[4]||'').toUpperCase(), loc:'RAWSON', lab:'RAWSON', extra:'pendiente', obs:'IMPORTADO', foto:''}); imp++;
+});
+save(); render(); alert(`Importados ${imp}`);
+}; reader.readAsText(file);
+});
+$('#selVista').addEventListener('change',e=>{
+const v=e.target.value; if(v.includes('HOY')){ vista='total'; } else if(v.includes('MAÑANA')){ const man=new Date(); man.setDate(man.getDate()+1); fechaFiltro=man.toISOString().slice(0,10); vista='fecha'; $('#filtroFecha').value=fechaFiltro; $('#filtroFecha').style.display='block'; } else vista='historico'; render();
+});
+$('#btnAjustes').addEventListener('click',async()=>{
+if(!confirm('¿Borrar cache y desinstalar SW viejo?')) return;
+if('caches' in window){ const k=await caches.keys(); for(const c of k) await caches.delete(c); }
+if('serviceWorker' in navigator){ const r=await navigator.serviceWorker.getRegistrations(); for(const x of r) await x.unregister(); }
+location.reload();
+});
+});
+</script>
+</body>
+</html>
