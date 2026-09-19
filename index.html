@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PREXA Laboratorio - V11.17 CORREGIDA</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0a1931">
+<link rel="icon" href="./icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f6f5f0;--blue:#3b82f6;--green:#16a34a;--dark:#0a1931;--yellow:#facc15;--orange:#fb923c;--red:#ef4444;--fosfo:#39ff14}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui;background:var(--bg);padding-bottom:110px;overflow-x:hidden}
+.header{position:sticky;top:0;z-index:80;background:#fff;border-bottom:2px solid var(--dark);padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between}
+.btn{border:0;border-radius:10px;padding:9px 10px;font-weight:800;cursor:pointer;min-height:38px;font-size:11px;display:inline-flex;align-items:center;gap:4px}
+.btn-d{background:var(--dark);color:#fff}.btn-l{background:#eee}.btn-g{background:#dcfce7;border:1px solid #16a34a}.btn-b{background:#dbeafe;border:1px solid #3b82f6}.btn-y{background:#fef9c3;border:1px solid #eab308}.btn-r{background:#fee;color:#900;border:1px solid #fca5a5}
+.topbar{background:#fff;border-bottom:1px solid #ddd;padding:6px 8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{padding:7px 12px;border-radius:20px;background:#eee;font-size:11px;font-weight:800;border:1px solid #ddd;cursor:pointer}.chip.active{background:var(--dark);color:#fff;border-color:var(--dark)}
+.table{background:#fff;border-top:2px solid var(--dark);overflow:auto;max-height:68dvh;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:1850px}th{background:var(--dark);color:#fff;padding:8px 6px;position:sticky;top:0;z-index:2;text-align:left;white-space:nowrap}td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}
+.pos{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;cursor:grab}.pos-rawson{background:var(--green)}.pos-trinidad{background:var(--blue)}.pos-otro{background:#999}
+.dot{width:20px;height:20px;border-radius:50%;display:inline-block;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px #ddd}.dot-pendiente{background:var(--orange)}.dot-si{background:var(--yellow)}.dot-hiv-si{background:var(--fosfo)}.dot-no{background:var(--red)}
+.banner{padding:10px;margin:6px;border-radius:10px;display:none;white-space:pre-wrap;font-size:11px;font-weight:700}.banner.show{display:block}.bannerError{background:#fee;border:2px solid red;color:#900}.bannerRawson{background:#000;color:#39ff14;border:3px solid #39ff14}.bannerHorario{background:#fef9c3;border:2px solid #eab308;color:#713f12}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;z-index:100;align-items:flex-end;justify-content:center}
+@media(min-width:700px){.modal{align-items:center;padding:10px}}.box{background:#fff;border-radius:16px 16px 0 0;padding:14px;max-width:720px;width:100%;max-height:92dvh;overflow:auto}
+@media(min-width:700px){.box{border-radius:14px;margin:20px auto}}
+input,select,textarea{padding:11px;border:1px solid #ddd;border-radius:10px;width:100%;font-size:13px;min-height:42px}
+.fila-rawson-listo{background:linear-gradient(90deg,#39ff14,#00ff7f)!important;border-left:8px solid #000!important}
+.fila-cambio-horario{background:#fef9c3!important;border-left:7px solid #eab308!important}
+.fila-dragging{opacity:.35;background:#dbeafe!important}
+.btnIcon{width:34px;height:34px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.btnFoto{width:34px;height:34px;border-radius:50%;border:2px solid #39ff14;background:#000;color:#39ff14}.btnFoto.hasFoto{background:#39ff14;color:#000}
+#visorFoto{position:fixed;inset:0;background:#000;display:none;z-index:200;flex-direction:column}#visorFoto.show{display:flex}#visorFoto img{max-width:100%;max-height:80dvh;object-fit:contain;margin:auto}
+.sticky-pos{position:sticky;left:0;background:#fff;border-right:2px solid #ddd;z-index:3}.sticky-acciones{position:sticky;right:0;background:#fff;border-left:2px solid #ddd;z-index:3}
+</style>
+</head>
+<body>
+<div class="header">
+<div style="display:flex;gap:6px;align-items:center"><b>PREXA</b><span style="background:#000;color:#39ff14;padding:2px 6px;border-radius:6px;font-size:10px">V11.17 CORREGIDA</span><span id="contador" style="background:#eee;padding:3px 8px;border-radius:12px;font-size:10px"></span></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn btn-d" id="btnNuevo">+ NUEVO</button>
+<button class="btn btn-d" id="btnHoy">📅 HOY</button>
+<button class="btn btn-g" id="btnGuardarLista">💾 GUARDAR LISTA</button>
+<button class="btn btn-r" id="btnBorrarTodo">🗑️ BORRAR TODO</button>
+</div>
+</div>
+<div class="topbar">
+<select id="selVista" style="flex:1;min-width:150px;font-weight:800"><option>EXTRACCIONES DEL HOY</option><option>EXTRACCIONES DE MAÑANA</option><option>TODAS</option></select>
+<input id="googleKey" placeholder="Google API Key (opcional para Cercanía)" style="flex:2;min-width:150px">
+<input type="date" id="filtroFecha" style="max-width:150px">
+<button class="btn btn-l" id="btnAjustes">⚙️ BORRAR CACHE</button>
+</div>
+<div style="padding:6px 8px;display:flex;gap:6px;flex-wrap:wrap">
+<button class="chip active" data-tab="total" id="tabTotal">📋 Total Hoy (0)</button>
+<button class="chip" data-tab="fecha" id="tabFecha">📅 Por Fecha</button>
+<button class="chip" data-tab="individual" id="tabIndividual">👤 Individual</button>
+<button class="chip" data-tab="historico" id="tabHistorico">📚 Histórico</button>
+</div>
+<div style="padding:0 8px;display:flex;gap:6px">
+<input id="buscador" placeholder="Buscar paciente por NOMBRE y APELLIDO..." style="flex:1;padding:11px;border:1px solid #ddd;border-radius:10px">
+<select id="filtroLocalidad" style="max-width:120px;padding:10px;border-radius:10px;border:1px solid #ddd"><option>Todas</option><option>RAWSON</option><option>TRINIDAD</option><option>PENDIENTE</option></select>
+</div>
+<div style="padding:6px 8px;display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn btn-l" id="btnImportar">📥 Importar</button>
+<button class="btn btn-b" id="btnCercania">📍 Cercanía</button>
+<button class="btn btn-y" id="btnHorarios">⏰ Horarios 20/30</button>
+<button class="btn btn-d" id="btnOrdenFinal">✅ Orden Final</button>
+<button class="btn btn-g" id="btnDuplicar">📋 Duplicar mañana</button>
+<button class="btn btn-b" id="btnMapa">🗺️ MAPA</button>
+<button class="btn btn-l" id="btnExport">📤 Exportar</button>
+<input type="file" id="fileImport" accept=".csv,.txt" style="display:none">
+</div>
+<div id="bannerError" class="banner bannerError"></div>
+<div id="bannerRawson" class="banner bannerRawson"></div>
+<div id="bannerHorario" class="banner bannerHorario"></div>
+<div class="table"><table><thead><tr><th class="sticky-pos">✓</th><th>POS</th><th>FECHA</th><th>HORARIO</th><th>PACIENTE</th><th>TEL</th><th>DIRECCIÓN + ENTRE CALLES</th><th>MUTUAL</th><th>LAB</th><th>EXTRA</th><th>FOTO</th><th class="sticky-acciones">ACCIONES</th></tr></thead><tbody id="tbody"></tbody></table></div>
+<div class="modal" id="modal"><div class="box">
+<h3 id="modalTitle">Paciente</h3>
+<input type="hidden" id="editId">
+<div style="display:flex;gap:6px"><input type="date" id="fFecha"><input type="time" id="fHorario" style="max-width:130px"></div>
+<input id="fPaciente" placeholder="APELLIDO NOMBRE *">
+<div style="display:flex;gap:6px"><input id="fTel" placeholder="TEL / WhatsApp"><input id="fMutual" placeholder="MUTUAL"></div>
+<input id="fDireccion" placeholder="DIRECCIÓN + ENTRE CALLES *">
+<div style="display:flex;gap:6px"><select id="fLocalidad"><option>RAWSON</option><option>TRINIDAD</option><option>OTRO</option></select><select id="fLab"><option>RAWSON</option><option>TRINIDAD</option></select></div>
+<select id="fExtra"><option value="pendiente">🟠 PENDIENTE</option><option value="si">🟡 SI</option><option value="hiv-si">🟢 HIV SI</option><option value="no">🔴 NO</option></select>
+<textarea id="fObs" placeholder="Observaciones / Referencias / Claves"></textarea>
+<input type="file" id="fFotoFile" accept="image/*" capture="environment" style="display:none">
+<div style="display:flex;gap:6px"><button class="btn btn-b" id="btnFoto" style="flex:1">📸 FOTO</button><img id="prevFoto" style="width:50px;height:50px;border-radius:8px;object-fit:cover;display:none"></div>
+<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-d" id="btnGuardar" style="flex:1">💾 GUARDAR</button><button class="btn btn-l" id="btnCerrar">CERRAR</button></div>
+<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-r" id="btnEliminar" style="flex:1">🗑️ BORRAR INDIVIDUAL</button><button class="btn btn-l" id="btnDuplicarUno" style="flex:1">📋 Duplicar</button></div>
+</div></div>
+<div id="visorFoto"><div style="display:flex;justify-content:space-between;padding:10px"><span style="color:#39ff14;font-weight:900">FOTO</span><button class="btn btn-l" id="btnCerrarVisor">X</button></div><img id="imgVisor" src=""><div id="txtVisor" style="padding:10px;color:#fff;text-align:center"></div></div>
+<script>
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const KEY='prexa_v1117_corregida';
+let data=JSON.parse(localStorage.getItem(KEY)||'null');
+if(!data){
+const hoy=new Date().toISOString().slice(0,10);
+data=[
+{id:1,pos:1,fecha:hoy,horario:'08:00',paciente:'PEREZ JUAN EJEMPLO',tel:'2645123456',direccion:'AV LIBERTADOR 1010 E/ LAS HERAS Y SALTA - REJA NEGRA',mutual:'OSDE',loc:'RAWSON',lab:'RAWSON',extra:'pendiente',obs:'Timbre no anda',foto:''},
+{id:2,pos:2,fecha:hoy,horario:'09:30 cambio',paciente:'GONZALEZ MARIA HIV',tel:'2644654321',direccion:'MITRE 55 2B E/ ENTRE RIOS Y SAN LUIS',mutual:'PAMI',loc:'TRINIDAD',lab:'TRINIDAD',extra:'hiv-si',obs:'HIV SI heladera',foto:''}
+];
+}
+let vista='total'; let filtroTexto=''; let filtroLoc='Todas'; let fechaFiltro=new Date().toISOString().slice(0,10); let fotoTemp='';
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+function renderBanners(){
+const pendRaw=data.filter(d=>d.lab==='RAWSON' && d.extra==='pendiente' && d.fecha===fechaFiltro).length;
+const cambios=data.filter(d=>d.horario && d.horario.toLowerCase().includes('cambio')).length;
+const bR=$('#bannerRawson'), bH=$('#bannerHorario');
+if(pendRaw>0){ bR.textContent=`⚡ ATENCION RAWSON: ${pendRaw} pendientes HOY (${fechaFiltro})`; bR.classList.add('show'); } else bR.classList.remove('show');
+if(cambios>0){ bH.textContent=`⏰ CAMBIO DE HORARIO: ${cambios} pacientes`; bH.classList.add('show'); } else bH.classList.remove('show');
+$('#contador').textContent=`${data.filter(d=>d.fecha===fechaFiltro).length} hoy | ${data.length} total`;
+}
+function getFiltrados(){
+let f=[...data];
+const hoy=new Date().toISOString().slice(0,10);
+if(vista==='total'){ f=f.filter(x=>x.fecha===fechaFiltro); }
+if(vista==='fecha' && fechaFiltro){ f=f.filter(x=>x.fecha===fechaFiltro); }
+if(vista==='historico'){ f=f.filter(x=>x.fecha<hoy); }
+if(filtroLoc==='RAWSON' || filtroLoc==='TRINIDAD') f=f.filter(x=>x.loc===filtroLoc || x.lab===filtroLoc);
+if(filtroLoc==='PENDIENTE') f=f.filter(x=>x.extra==='pendiente' || x.extra==='no');
+if(filtroTexto){ const t=filtroTexto.toLowerCase(); f=f.filter(x=>(x.paciente+' '+x.direccion+' '+x.tel+' '+x.mutual+' '+x.obs).toLowerCase().includes(t)); }
+f.sort((a,b)=>{ if(a.fecha!==b.fecha) return a.fecha.localeCompare(b.fecha); return a.pos-b.pos; });
+return f;
+}
+function aplicarReglas(tr,r){
+tr.classList.remove('fila-rawson-listo','fila-cambio-horario');
+if(r.lab==='RAWSON' && r.extra==='si') tr.classList.add('fila-rawson-listo');
+if(r.horario && (r.horario.toLowerCase().includes('cambio') || r.horario.toLowerCase().includes('reprog'))) tr.classList.add('fila-cambio-horario');
+}
+function render(){
+const lista=getFiltrados();
+const tbody=$('#tbody'); tbody.innerHTML='';
+lista.forEach(r=>{
+const tr=document.createElement('tr'); tr.draggable=true; tr.dataset.id=r.id;
+const locClass=r.loc==='RAWSON'?'pos-rawson':r.loc==='TRINIDAD'?'pos-trinidad':'pos-otro';
+tr.innerHTML=`<td class="sticky-pos"><input type="checkbox"></td><td><div class="pos ${locClass}">${r.pos}</div></td><td>${r.fecha.split('-').reverse().join('/')}</td><td>${r.horario}</td><td><b>${r.paciente}</b><br><small style="color:#666">${r.obs||''}</small></td><td>${r.tel}</td><td>${r.direccion}</td><td>${r.mutual}</td><td>${r.lab}</td><td><span class="dot dot-${r.extra}" data-act="toggle"></span><br><small>${r.extra}</small></td><td>${r.foto?`<button class="btnFoto hasFoto" data-act="verFoto">📸</button>`:`<button class="btnFoto" data-act="tomarFoto">📷</button>`}</td><td class="sticky-acciones"><button class="btnIcon" data-act="edit">✏️</button> <button class="btnIcon" data-act="del" style="color:red">🗑️</button> <a class="btnIcon" href="https://www.google.com/maps/search/${encodeURIComponent(r.direccion)}" target="_blank">📍</a> <a class="btnIcon" href="https://wa.me/${r.tel.replace(/\D/g,'')}" target="_blank">💬</a></td>`;
+aplicarReglas(tr,r);
+tr.addEventListener('dragstart',e=>{ tr.classList.add('fila-dragging'); e.dataTransfer.setData('text',r.id); });
+tr.addEventListener('dragend',()=>tr.classList.remove('fila-dragging'));
+tr.addEventListener('dragover',e=>e.preventDefault());
+tr.addEventListener('drop',e=>{ e.preventDefault(); const did=e.dataTransfer.getData('text'); if(did==r.id) return; const d1=data.find(x=>x.id==did); const d2=data.find(x=>x.id==r.id); if(!d1||!d2||d1.fecha!==d2.fecha){ alert('Solo dentro de misma fecha'); return; } const t=d1.pos; d1.pos=d2.pos; d2.pos=t; save(); render(); });
+tbody.appendChild(tr);
+});
+tbody.querySelectorAll('[data-act]').forEach(el=>el.addEventListener('click',e=>{
+const tr=e.target.closest('tr'); const row=data.find(x=>x.id==tr.dataset.id);
+const act=e.target.dataset.act;
+if(act==='edit') abrir(row);
+if(act==='del'){ if(!confirm(`¿Borrar individual ${row.paciente}?`)) return; data=data.filter(x=>x.id!=row.id); reindex(); save(); render(); }
+if(act==='toggle'){ const o=['pendiente','si','hiv-si','no']; row.extra=o[(o.indexOf(row.extra)+1)%o.length]; save(); render(); renderBanners(); }
+if(act==='verFoto'){ $('#imgVisor').src=row.foto; $('#txtVisor').textContent=`${row.paciente} - ${row.direccion} - ${row.fecha}`; $('#visorFoto').classList.add('show'); }
+if(act==='tomarFoto'){ abrir(row); setTimeout(()=>$('#btnFoto').click(),250); }
+}));
+$('#tabTotal').textContent=`📋 Total Hoy (${lista.length})`;
+renderBanners();
+}
+function reindex(){
+let porFecha={}; data.forEach(d=>{ if(!porFecha[d.fecha]) porFecha[d.fecha]=[]; porFecha[d.fecha].push(d); });
+Object.keys(porFecha).forEach(fecha=>{ porFecha[fecha].sort((a,b)=>a.pos-b.pos).forEach((x,i)=>x.pos=i+1); });
+}
+function abrir(row){
+if(row){ $('#editId').value=row.id; $('#fFecha').value=row.fecha; $('#fHorario').value=row.horario.match(/\d{1,2}:\d{2}/)?.[0]||'08:00'; $('#fPaciente').value=row.paciente; $('#fTel').value=row.tel; $('#fDireccion').value=row.direccion; $('#fMutual').value=row.mutual; $('#fLocalidad').value=row.loc; $('#fLab').value=row.lab; $('#fExtra').value=row.extra; $('#fObs').value=row.obs; fotoTemp=row.foto||''; $('#modalTitle').textContent=`EDITAR POS ${row.pos} - ${row.fecha}`; $('#btnEliminar').style.display='block'; if(fotoTemp){ $('#prevFoto').src=fotoTemp; $('#prevFoto').style.display='block'; } else $('#prevFoto').style.display='none'; }
+else { const hoy=new Date().toISOString().slice(0,10); $('#editId').value=''; $('#fFecha').value=fechaFiltro||hoy; $('#fHorario').value='08:00'; $('#fPaciente').value=''; $('#fTel').value=''; $('#fDireccion').value=''; $('#fMutual').value=''; $('#fLocalidad').value='RAWSON'; $('#fLab').value='RAWSON'; $('#fExtra').value='pendiente'; $('#fObs').value=''; fotoTemp=''; $('#prevFoto').style.display='none'; $('#modalTitle').textContent=`NUEVO - ${$('#fFecha').value}`; $('#btnEliminar').style.display='none'; }
+$('#modal').classList.add('open');
+}
+document.addEventListener('DOMContentLoaded',()=>{
+$('#filtroFecha').value=fechaFiltro;
+render();
+$('#btnNuevo').addEventListener('click',()=>abrir(null));
+$('#btnCerrar').addEventListener('click',()=>$('#modal').classList.remove('open'));
+$('#btnCerrarVisor').addEventListener('click',()=>$('#visorFoto').classList.remove('show'));
+$('#buscador').addEventListener('input',e=>{ filtroTexto=e.target.value; vista='individual'; render(); });
+$('#filtroLocalidad').addEventListener('change',e=>{ filtroLoc=e.target.value; render(); });
+$$('.chip').forEach(c=>c.addEventListener('click',e=>{
+$$('.chip').forEach(x=>x.classList.remove('active')); e.target.classList.add('active');
+vista=e.target.dataset.tab;
+if(vista==='fecha'){ if(!$('#filtroFecha').value) $('#filtroFecha').value=new Date().toISOString().slice(0,10); fechaFiltro=$('#filtroFecha').value; }
+if(vista==='total'){ fechaFiltro=new Date().toISOString().slice(0,10); $('#filtroFecha').value=fechaFiltro; }
+render();
+}));
+$('#filtroFecha').addEventListener('change',e=>{ fechaFiltro=e.target.value; vista='fecha'; $$('.chip').forEach(x=>x.classList.remove('active')); $('#tabFecha').classList.add('active'); render(); });
+$('#btnFoto').addEventListener('click',()=>$('#fFotoFile').click());
+$('#fFotoFile').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ fotoTemp=ev.target.result; $('#prevFoto').src=fotoTemp; $('#prevFoto').style.display='block'; }; r.readAsDataURL(f); });
+$('#btnGuardar').addEventListener('click',()=>{
+const id=$('#editId').value;
+const obj={ fecha:$('#fFecha').value||new Date().toISOString().slice(0,10), horario:$('#fHorario').value||'08:00', paciente:($('#fPaciente').value||'SIN NOMBRE').toUpperCase(), tel:$('#fTel').value, direccion:($('#fDireccion').value||'').toUpperCase(), mutual:($('#fMutual').value||'').toUpperCase(), loc:$('#fLocalidad').value, lab:$('#fLab').value, extra:$('#fExtra').value, obs:$('#fObs').value, foto:fotoTemp };
+if(!obj.direccion ||!obj.paciente){ alert('Paciente y Dirección obligatorios'); return; }
+if(id){ Object.assign(data.find(x=>x.id==id), obj); } else { const max=data.filter(d=>d.fecha===obj.fecha).length; data.push({ id:Date.now(), pos:max+1,...obj }); }
+reindex(); save(); render(); $('#modal').classList.remove('open');
+});
+$('#btnEliminar').addEventListener('click',()=>{ const id=$('#editId').value; if(!id) return; if(!confirm('¿Borrar paciente INDIVIDUAL?')) return; data=data.filter(x=>x.id!=id); reindex(); save(); render(); $('#modal').classList.remove('open'); });
+$('#btnDuplicarUno').addEventListener('click',()=>{ const id=$('#editId').value; if(!id) return; const orig=data.find(x=>x.id==id); const man=new Date(orig.fecha); man.setDate(man.getDate()+1); const nueva={...orig, id:Date.now(), fecha:man.toISOString().slice(0,10), pos:data.filter(d=>d.fecha===man.toISOString().slice(0,10)).length+1, extra:'pendiente' }; data.push(nueva); reindex(); save(); render(); $('#modal').classList.remove('open'); alert('Duplicado a '+nueva.fecha); });
+$('#btnHoy').addEventListener('click',()=>{ fechaFiltro=new Date().toISOString().slice(0,10); $('#filtroFecha').value=fechaFiltro; vista='total'; $$('.chip').forEach(x=>x.classList.remove('active')); $('#tabTotal').classList.add('active'); render(); });
+$('#btnGuardarLista').addEventListener('click',()=>{
+const fecha=fechaFiltro; const lista=data.filter(d=>d.fecha===fecha);
+if(lista.length===0){ alert('No hay pacientes para guardar en '+fecha); return; }
+const backupKey='prexa_backup_'+fecha;
+localStorage.setItem(backupKey, JSON.stringify(lista));
+alert(`✅ Lista guardada con FECHA ${fecha}: ${lista.length} pacientes.`);
+});
+$('#btnBorrarTodo').addEventListener('click',()=>{
+if(!confirm(`¿BORRAR TODO? Hoy tenés ${data.length} pacientes en total. ¿Seguro?`)) return;
+if(!confirm('ULTIMA CONFIRMACION: ¿Borrar definitivamente TODA la base?')) return;
+data=[]; save(); render(); alert('Base borrada');
+});
+$('#btnCercania').addEventListener('click',()=>{
+const key=$('#googleKey').value; if(!key){ alert('Para Cercanía poné Google API Key. Por ahora ordeno por dirección A-Z.'); }
+data.filter(d=>d.fecha===fechaFiltro).sort((a,b)=>a.direccion.localeCompare(b.direccion)).forEach((x,i)=>{ x.pos=i+1; }); save(); render();
+});
+$('#btnHorarios').addEventListener('click',()=>{
+let grupos={}; data.filter(d=>d.fecha===fechaFiltro).forEach(d=>{ const h=d.horario.split(':')[0]||'08'; if(!grupos[h]) grupos[h]=[]; grupos[h].push(d.paciente); });
+let txt='⏰ Horarios 20/30 - Hoy:\n'; Object.keys(grupos).sort().forEach(h=>{ txt+=`${h}:00 - ${grupos[h].length} pacientes\n`; });
+alert(txt);
+});
+$('#btnOrdenFinal').addEventListener('click',()=>{ if(!confirm('¿Bloquear Orden Final?')) return; reindex(); save(); render(); alert('✅ Orden Final guardado con fecha '+fechaFiltro); });
+$('#btnDuplicar').addEventListener('click',()=>{
+const hoy=fechaFiltro; const manana=new Date(hoy); manana.setDate(manana.getDate()+1); const man=manana.toISOString().slice(0,10);
+const cant=data.filter(d=>d.fecha===hoy).length;
+if(cant===0){ alert('No hay pacientes hoy'); return; }
+if(!confirm(`Duplicar ${cant} pacientes de ${hoy} a mañana ${man}?`)) return;
+const copias=data.filter(d=>d.fecha===hoy).map(d=>({...d, id:Date.now()+Math.random(), fecha:man, extra:'pendiente', pos:0 }));
+data=[...data,...copias]; reindex(); save(); render(); alert(`Duplicado ${copias.length} a ${man}`);
+});
+$('#btnImportar').addEventListener('click',()=>$('#fileImport').click());
+$('#fileImport').addEventListener('change',e=>{
+const file=e.target.files[0]; if(!file) return; const r=new FileReader(); r.onload=ev=>{
+const lines=ev.target.result.split('\n').filter(l=>l.trim()); let imp=0; lines.forEach(l=>{ const p=l.split(','); if(p.length<2) return; data.push({ id:Date.now()+Math.random(), pos:data.filter(d=>d.fecha===fechaFiltro).length+1, fecha:fechaFiltro, horario:p[0]||'08:00', paciente:(p[1]||'IMPORT').toUpperCase(), tel:p[2]||'', direccion:(p[3]||'').toUpperCase(), mutual:(p[4]||'').toUpperCase(), loc:'RAWSON', lab:'RAWSON', extra:'pendiente', obs:'IMPORTADO', foto:'' }); imp++; }); reindex(); save(); render(); alert(`Importados ${imp}`); }; r.readAsText(file);
+});
+$('#btnMapa').addEventListener('click',()=>{ const lista=getFiltrados(); if(lista.length===0) return; const q=lista.map(d=>d.direccion).join('|'); window.open('https://www.google.com/maps/dir/'+encodeURIComponent(q),'_blank'); });
+$('#btnExport').addEventListener('click',()=>{ let csv='FECHA,HORARIO,PACIENTE,TEL,DIRECCION,MUTUAL,LAB,EXTRA,OBS\n'; getFiltrados().forEach(r=>{ csv+=`${r.fecha},${r.horario},"${r.paciente}",${r.tel},"${r.direccion}",${r.mutual},${r.lab},${r.extra},"${r.obs}"\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`PREXA_${fechaFiltro}.csv`; a.click(); });
+$('#selVista').addEventListener('change',e=>{ const v=e.target.value; if(v.includes('HOY')){ $('#btnHoy').click(); } else if(v.includes('MAÑANA')){ const man=new Date(); man.setDate(man.getDate()+1); fechaFiltro=man.toISOString().slice(0,10); $('#filtroFecha').value=fechaFiltro; vista='fecha'; render(); } else { vista='historico'; render(); } });
+$('#btnAjustes').addEventListener('click',async()=>{ if(!confirm('¿Borrar cache y SW viejo?')) return; if('caches' in window){ const k=await caches.keys(); for(const c of k) await caches.delete(c); } if('serviceWorker' in navigator){ const rs=await navigator.serviceWorker.getRegistrations(); for(const r of rs) await r.unregister(); } location.reload(); });
+});
+</script>
+</body>
+</html>
